@@ -94,12 +94,16 @@ export class QuestionsController {
     const userId = req.user.sub;
     const { code, isCorrect, category } = body;
     
+    const question = await this.questionsService.findOne(questionId);
+    
     const progress = await this.questionsService.recordAttempt(
       userId,
       questionId,
       category,
       code,
       isCorrect,
+      question.subjectId?.toString(),
+      question.categoryId?.toString(),
     );
 
     return { success: true, progress };

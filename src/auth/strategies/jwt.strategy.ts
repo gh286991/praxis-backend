@@ -18,8 +18,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Return the payload directly with sub (userId)
-    // The guards will use req.user.sub to get userId
-    return { sub: payload.sub, email: payload.email };
+    const user = await this.usersService.findOne(payload.sub);
+    if (!user) {
+        return null; // Or throw UnauthorizedException
+    }
+    // Return user object mixed with sub for backward compatibility
+    // Controllers expect req.user.sub to be the userId
+    const userObj = user.toObject();
+    return { ...userObj, sub: userObj._id };
   }
 }

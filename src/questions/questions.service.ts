@@ -227,15 +227,21 @@ export class QuestionsService {
    * Get user's question history for a specific category
    */
   async getHistory(userId: string, category: string) {
+    console.log(`Getting history for user ${userId}, category ${category}`);
     const history = await this.userProgressModel
       .find({ userId: new Types.ObjectId(userId), category })
       .sort({ attemptedAt: -1 })
       .populate('questionId', 'title')
       .exec();
 
+    console.log(`Found ${history.length} history records`);
+
     return history.map(record => {
       // Handle case where question might have been deleted
-      if (!record.questionId) return null;
+      if (!record.questionId) {
+          console.warn(`History record ${record._id} has missing question reference`);
+          return null;
+      }
       
       const question = record.questionId as any;
       return {
