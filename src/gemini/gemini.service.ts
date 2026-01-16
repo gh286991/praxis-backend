@@ -32,8 +32,6 @@ export class GeminiService {
       
       TQC Python Categories reference:
       1. Basic Programming Design (Variables, Expressions, Input/Output)
-         - CRITICAL: For this category, 80% of questions MUST involve strict output formatting (e.g., using f-strings or .format() to align text, control decimal places, or format columns).
-         - Example: "Print the result in a column of width 10, right-aligned."
       2. Selection Statements (if, else, elif)
       3. Repetition Structures (for, while loops)
       4. Complex Data Structures (Lists, Tuples, Dictionaries, Sets)
@@ -76,6 +74,47 @@ export class GeminiService {
     } catch (error) {
       console.error('Error generating question:', error);
       throw error;
+    }
+  }
+
+  async generateHint(
+    question: QuestionData,
+    userCode: string,
+  ): Promise<string> {
+    const prompt = `
+      You are a helpful Python tutor assisting a student with a coding problem.
+      
+      The Problem:
+      Title: ${question.title}
+      Description: ${question.description}
+      
+      The Student's Current Code:
+      ${userCode}
+      
+      The student is stuck and asking for a hint.
+      Please provide a response in Traditional Chinese (繁體中文) strictly following this format:
+
+      ### 🧠 解題思路
+      (Briefly explain the logical steps to solve this problem. Use bullet points. Keep it under 3 lines.)
+
+      ### 🔑 關鍵語法
+      (List key Python functions e.g., \`input()\`, \`int()\`, \`f-string\`. No explanations needed.)
+
+      ### 💡 提示
+      (Specific, short advice based on their current code. Max 2 sentences.)
+      
+      CRITICAL RULES:
+      1. DO NOT reveal the complete solution code.
+      2. KEEP IT CONCISE. The user wants quick hints, not long explanations.
+      3. Use standard markdown for formatting (bullet points, backticks for code).
+    `;
+
+    try {
+      const result = await this.model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      console.error('Error generating hint:', error);
+      return '無法產生提示，請再試一次。';
     }
   }
 }

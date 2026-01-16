@@ -4,6 +4,7 @@ export class CreateTestCaseDto {
 }
 
 export class CreateQuestionDto {
+  category: string;
   title: string;
   description: string;
   sampleInput: string;

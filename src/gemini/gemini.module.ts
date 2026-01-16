@@ -4,6 +4,7 @@ import { GeminiController } from './gemini.controller';
 
 @Module({
   providers: [GeminiService],
-  controllers: [GeminiController]
+  controllers: [GeminiController],
+  exports: [GeminiService], // Export so QuestionsModule can use it
 })
 export class GeminiModule {}

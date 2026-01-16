@@ -14,6 +14,9 @@ export class TestCase {
 
 @Schema({ timestamps: true })
 export class Question {
+  @Prop({ required: true, index: true })
+  category: string; // category1 ~ category9
+
   @Prop({ required: true })
   title: string;
 
@@ -28,6 +31,9 @@ export class Question {
 
   @Prop([TestCase])
   testCases: TestCase[];
+
+  @Prop({ default: 0 })
+  usedCount: number;
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);
