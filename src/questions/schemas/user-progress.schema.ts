@@ -6,11 +6,17 @@ export class UserProgress extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Subject', required: false })
+  subjectId?: Types.ObjectId; // 新架構：關聯到 Subject
+
+  @Prop({ type: Types.ObjectId, ref: 'Category', required: false })
+  categoryId?: Types.ObjectId; // 新架構：關聯到 Category
+
   @Prop({ type: Types.ObjectId, ref: 'Question', required: true })
   questionId: Types.ObjectId;
 
   @Prop({ required: true })
-  category: string;
+  category: string; // 舊架構保留向下兼容 (deprecated)
 
   @Prop({ default: '' })
   code: string; // Last submitted code

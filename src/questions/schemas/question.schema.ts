@@ -1,21 +1,21 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-export type QuestionDocument = HydratedDocument<Question>;
-
-@Schema()
-export class TestCase {
-  @Prop()
+interface TestCase {
   input: string;
-
-  @Prop()
   output: string;
 }
 
 @Schema({ timestamps: true })
-export class Question {
+export class Question extends Document {
+  @Prop({ type: Types.ObjectId, ref: 'Subject', required: false })
+  subjectId?: Types.ObjectId; // 新架構：關聯到 Subject
+
+  @Prop({ type: Types.ObjectId, ref: 'Category', required: false })
+  categoryId?: Types.ObjectId; // 新架構：關聯到 Category
+
   @Prop({ required: true, index: true })
-  category: string; // category1 ~ category9
+  category: string; // 舊架構保留向下兼容 (deprecated)
 
   @Prop({ required: true })
   title: string;
@@ -23,13 +23,13 @@ export class Question {
   @Prop({ required: true })
   description: string;
 
-  @Prop()
+  @Prop({ default: '' })
   sampleInput: string;
 
-  @Prop()
+  @Prop({ default: '' })
   sampleOutput: string;
 
-  @Prop([TestCase])
+  @Prop({ type: Array, default: [] })
   testCases: TestCase[];
 
   @Prop({ default: 0 })

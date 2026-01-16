@@ -49,11 +49,58 @@ export class QuestionsService {
   }
 
   /**
-   * Get next question for user in specific category
+   * Get next question by subjectId and categoryId (new architecture)
+   */
+  async getNextQuestionByIds(
+    userId: string,
+    subjectId: string,
+    categoryId: string,
+    force: boolean = false,
+  ): Promise<Question | null> {
+    console.log(
+      `Getting next question for user ${userId} in subject ${subjectId}, category ${categoryId}, force: ${force}`,
+    );
+
+    if (force) {
+      console.log('Force true, bypassing DB check');
+      return null;
+    }
+
+    // Get attempted questions
+    const attemptedQuestions = await this.userProgressModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        subjectId: new Types.ObjectId(subjectId),
+        categoryId: new Types.ObjectId(categoryId),
+      })
+      .select('questionId')
+      .exec();
+
+    const attemptedQuestionIds = attemptedQuestions.map((up) => up.questionId);
+
+    // Find unattempted question
+    const availableQuestion = await this.questionModel
+      .findOne({
+        subjectId: new Types.ObjectId(subjectId),
+        categoryId: new Types.ObjectId(categoryId),
+        _id: { $nin: attemptedQuestionIds },
+      })
+      .sort({ usedCount: 1 })
+      .exec();
+
+    return availableQuestion;
+  }
+
+  /**
+   * Get next question for user in specific category (legacy, backward compatible)
    * Returns a question from DB that user hasn't attempted yet
    * Returns null if no unused questions available (unless force=true)
    */
-  async getNextQuestion(userId: string, category: string, force: boolean = false): Promise<Question | null> {
+  async getNextQuestion(
+    userId: string,
+    category: string,
+    force: boolean = false,
+  ): Promise<Question | null> {
     console.log(`Getting next question for user ${userId} in category ${category}, force: ${force}`);
     
     if (force) {
@@ -97,35 +144,45 @@ export class QuestionsService {
     category: string,
     code: string,
     isCorrect: boolean,
+    subjectId?: string,
+    categoryId?: string,
   ): Promise<UserProgress> {
     console.log(`Recording attempt for user ${userId}, question ${questionId}, correct: ${isCorrect}`);
     
     // Use findOneAndUpdate with upsert to maintain one record per user per question
+    const updateData: any = {
+      $set: {
+        category,
+        code,
+        attemptedAt: new Date(),
+      },
+      $setOnInsert: {
+        firstAttemptedAt: new Date(),
+        isCorrect: isCorrect,
+      },
+      $inc: {
+        attemptCount: 1,
+        ...(isCorrect ? { passedCount: 1 } : { failedCount: 1 }),
+      },
+    };
+
+    // Add subjectId and categoryId if provided (new architecture)
+    if (subjectId && categoryId) {
+      updateData.$set.subjectId = new Types.ObjectId(subjectId);
+      updateData.$set.categoryId = new Types.ObjectId(categoryId);
+    }
+
     const progress = await this.userProgressModel.findOneAndUpdate(
-      { 
-        userId: new Types.ObjectId(userId), 
-        questionId: new Types.ObjectId(questionId) 
-      },
       {
-        $set: {
-          category,
-          code, // Update to last submitted code
-          attemptedAt: new Date(), // Update last attempt time
-        },
-        $setOnInsert: {
-          firstAttemptedAt: new Date(), // Only set on first insert
-          isCorrect: isCorrect, // Initial value
-        },
-        $inc: {
-          attemptCount: 1,
-          ...(isCorrect ? { passedCount: 1 } : { failedCount: 1 }),
-        },
+        userId: new Types.ObjectId(userId),
+        questionId: new Types.ObjectId(questionId),
       },
-      { 
-        upsert: true, 
-        new: true, // Return updated document
-        setDefaultsOnInsert: true 
-      }
+      updateData,
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      },
     ).exec();
 
     // If user passed this time, update isCorrect to true (once passed, stays passed)
