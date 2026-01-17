@@ -4,6 +4,13 @@ import { Model, Types } from 'mongoose';
 import { Subject } from './schemas/subject.schema';
 import { Category } from './schemas/category.schema';
 import { UserProgress } from './schemas/user-progress.schema';
+import { Question } from './schemas/question.schema';
+
+export interface PlatformStats {
+  totalQuestions: number;
+  activeLearners: number;
+  totalExecutions: number;
+}
 
 export interface ProgressStats {
   totalQuestions: number;
@@ -34,6 +41,7 @@ export class StatsService {
     @InjectModel(Category.name) private categoryModel: Model<Category>,
     @InjectModel(UserProgress.name)
     private userProgressModel: Model<UserProgress>,
+    @InjectModel(Question.name) private questionModel: Model<Question>,
   ) {}
 
   /**
@@ -151,5 +159,22 @@ export class StatsService {
     }
 
     return stats;
+  }
+
+  /**
+   * Get global platform statistics (Public)
+   */
+  async getPlatformStats(): Promise<PlatformStats> {
+    const totalQuestions = await this.questionModel.countDocuments();
+    const totalExecutions = await this.userProgressModel.countDocuments();
+    
+    const activeLearnersList = await this.userProgressModel.distinct('userId');
+    const activeLearners = activeLearnersList.length;
+
+    return {
+      totalQuestions,
+      activeLearners,
+      totalExecutions,
+    };
   }
 }
