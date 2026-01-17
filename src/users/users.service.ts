@@ -56,10 +56,16 @@ export class UsersService {
     if (!profile) {
       profile = new this.userProfileModel({
         userId: objectId,
+        displayName: 'Anonymous User',
+        bio: '',
         totalQuestionsCompleted: 0,
+        totalCorrectAnswers: 0,
+        totalTimeSpent: 0,
         totalQuestionsPassed: 0,
         totalTokensUsed: 0,
         joinedAt: new Date(),
+        availableCredits: 10.0,
+        totalCreditsGranted: 10.0,
       });
       await profile.save();
     }
