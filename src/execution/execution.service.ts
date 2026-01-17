@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import * as os from 'os';
 
 @Injectable()
 export class ExecutionService {
@@ -10,50 +9,44 @@ export class ExecutionService {
     code: string,
     input: string = '',
   ): Promise<{ output: string; error?: string }> {
-    // Use a project-local temp directory to ensure reliable sharing with Docker on Mac/Windows
-    // Host path: ./temp
-    // Container path: /app/temp (mapped via volume)
+    // Use a project-local temp directory to ensure reliable sharing with Docker
+    // Host path: ./temp (or /app/temp inside container)
+    // This path must be shared/accessible by spawned containers
     const tmpDir = path.join(process.cwd(), 'temp');
     await fs.mkdir(tmpDir, { recursive: true });
 
     const fileName = `script_${Date.now()}_${Math.random().toString(36).substring(7)}.py`;
     const filePath = path.join(tmpDir, fileName);
 
-    // Path inside the container (if using remote docker exec)
-    // We mount ./temp -> /app/temp
-    const containerFilePath = `/app/temp/${fileName}`;
-
     try {
-      // 1. Write user code to a temp file on HOST
+      // 1. Write user code to a temp file
       await fs.writeFile(filePath, code);
 
       return new Promise((resolve) => {
-        // 2. Execute code
-        // Mode A: Docker Exec (if PYTHON_RUNNER_CONTAINER_NAME is set to a remote container)
-        // Mode B: Local NsJail (Monolithic, if variable is empty or explicitly 'local')
+        // Execution Mode Selection:
+        // - EXECUTION_MODE=nsjail: Use local nsjail (requires privileged container)
+        // - EXECUTION_MODE=docker-socket: Spawn sibling container via Docker socket (default)
+        // - EXECUTION_MODE=docker-exec: Exec into existing container (legacy sidecar mode)
         
+        const executionMode = process.env.EXECUTION_MODE || 'docker-socket';
         const runnerContainer = process.env.PYTHON_RUNNER_CONTAINER_NAME;
-        const isLocalNsJail = !runnerContainer || runnerContainer === 'local';
-
+        
         let command = '';
         let args: string[] = [];
 
-        if (isLocalNsJail) {
-          // Local NsJail Mode (Monolithic / Production Linux)
-          // In this mode, we assume we are INSIDE the container, so filePath (local path) IS the path.
-          // Unless we are doing crazy bind mounts, but usually Monolithic means "I wrote file to /app/temp/x.py, run it".
+        if (executionMode === 'nsjail') {
+          // Local NsJail Mode (requires --privileged)
           command = 'nsjail';
           args = [
             '--config',
             '/app/nsjail.cfg',
             '--',
             '/usr/bin/python3',
-            filePath, // Use local path
+            filePath,
           ];
-        } else {
-          // Sidecar Docker Exec Mode (Local Dev on Mac/Windows)
-          // We wrote file to ./temp/x.py (Host)
-          // Docker container sees it at /app/temp/x.py (Volume mounted)
+        } else if (executionMode === 'docker-exec' && runnerContainer) {
+          // Docker Exec Mode (exec into existing sidecar container)
+          const containerFilePath = `/app/temp/${fileName}`;
           command = 'docker';
           args = [
             'exec',
@@ -64,7 +57,27 @@ export class ExecutionService {
             '/app/nsjail.cfg',
             '--',
             '/usr/local/bin/python3',
-            containerFilePath, // Use container mapped path
+            containerFilePath,
+          ];
+        } else {
+          // Docker Socket Mode (spawn ephemeral sibling container)
+          // This works without privileged mode as long as Docker socket is mounted
+          // Uses resource limits via Docker instead of nsjail
+          command = 'docker';
+          args = [
+            'run',
+            '--rm',                           // Auto-remove container after execution
+            '-i',                             // Interactive (for stdin)
+            '--network', 'none',              // No network access (security)
+            '--memory', '64m',                // Memory limit
+            '--cpus', '0.5',                  // CPU limit
+            '--pids-limit', '32',             // Process limit
+            '--read-only',                    // Read-only filesystem
+            '--tmpfs', '/tmp:size=10m',       // Writable /tmp with size limit
+            '-v', `${filePath}:/code/script.py:ro`,  // Mount script as read-only
+            'python:3.11-slim',               // Use official Python image
+            'timeout', '5',                   // 5 second timeout
+            'python3', '/code/script.py',
           ];
         }
 
@@ -76,6 +89,8 @@ export class ExecutionService {
         if (input) {
           pythonProcess.stdin.write(input);
           pythonProcess.stdin.end();
+        } else {
+          pythonProcess.stdin.end();
         }
 
         pythonProcess.stdout.on('data', (data) => {
@@ -86,21 +101,23 @@ export class ExecutionService {
           stderr += data.toString();
         });
 
-        pythonProcess.on('close', async (code) => {
-          // Cleanup temp file on host
+        pythonProcess.on('close', async (exitCode) => {
+          // Cleanup temp file
           try {
             await fs.unlink(filePath);
           } catch (e) {
             console.error('Error deleting tmp file:', e);
           }
 
-          if (code !== 0) {
-            // Docker exit code 137 usually means OOMKilled (Out of Memory)
-            // or 124 for timeout if we used 'timeout' command wrapper
-            const errorMsg =
-              code === 137
-                ? 'Error: Memory Limit Exceeded'
-                : stderr || `Process exited with code ${code}`;
+          if (exitCode !== 0) {
+            // Exit code 137 = OOMKilled, 124 = timeout
+            let errorMsg = stderr || `Process exited with code ${exitCode}`;
+            
+            if (exitCode === 137) {
+              errorMsg = 'Error: Memory Limit Exceeded';
+            } else if (exitCode === 124) {
+              errorMsg = 'Error: Execution Timed Out';
+            }
 
             resolve({
               output: stdout,
@@ -111,19 +128,21 @@ export class ExecutionService {
           }
         });
 
-        // Timeout safety (Host side timeout)
+        pythonProcess.on('error', (err) => {
+          resolve({ output: '', error: `Spawn error: ${err.message}` });
+        });
+
+        // Host-side timeout safety net
         setTimeout(() => {
           pythonProcess.kill();
-          // Note: killing the docker CLI client might leave the container running briefly.
-          // --rm should handle cleanup eventually, but for strictness we might want to `docker kill` explicitly.
-          // For this scale, client kill + --rm is usually acceptable.
           resolve({ output: stdout, error: 'Error: Execution Timed Out' });
-        }, 5000); // 5s timeout
+        }, 10000); // 10s total timeout
       });
     } catch (err) {
       return { output: '', error: err.message };
     }
   }
+
   async evaluateSubmission(
     code: string,
     testCases: { input: string; output: string }[],
@@ -140,12 +159,11 @@ export class ExecutionService {
       let passed = !error && actualOutput === expectedOutput;
 
       if (!passed && !error) {
-        // Try loose comparison for numbers (handling rounding differences like 0.125 -> 0.12 vs 0.13)
+        // Try loose comparison for numbers (handling rounding differences)
         const numActual = parseFloat(actualOutput);
         const numExpected = parseFloat(expectedOutput);
 
         if (!isNaN(numActual) && !isNaN(numExpected)) {
-          // Allow a small epsilon delta (e.g. 0.02)
           if (Math.abs(numActual - numExpected) <= 0.02) {
             passed = true;
           }
