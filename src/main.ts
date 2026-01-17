@@ -9,7 +9,7 @@ async function bootstrap() {
   const port = configService.get<number>('PORT') || 3001;
 
   app.setGlobalPrefix('api');
-  
+
   // Configure CORS - only allow frontend domain
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',

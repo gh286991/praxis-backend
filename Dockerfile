@@ -71,6 +71,9 @@ COPY --from=builder /app/package.json ./package.json
 # In standalone repo, path is docker/nsjail/nsjail.cfg
 COPY --from=builder /app/docker/nsjail/nsjail.cfg /app/nsjail.cfg
 
+# Default Frontend URL (Override at runtime with -e)
+ENV FRONTEND_URL=http://localhost:3000
+
 EXPOSE 3001
 
 CMD ["node", "dist/main"]
