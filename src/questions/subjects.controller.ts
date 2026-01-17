@@ -7,9 +7,11 @@ import {
   Put,
   Delete,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 import { Subject } from './schemas/subject.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('subjects')
 export class SubjectsController {
@@ -26,16 +28,19 @@ export class SubjectsController {
     return this.subjectsService.findBySlug(slug);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body() subjectData: Partial<Subject>) {
     return this.subjectsService.create(subjectData);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Put(':id')
   async update(@Param('id') id: string, @Body() subjectData: Partial<Subject>) {
     return this.subjectsService.update(id, subjectData);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   async delete(@Param('id') id: string) {
     return this.subjectsService.delete(id);

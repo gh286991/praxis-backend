@@ -12,6 +12,7 @@ export class ExecutionController {
     private readonly geminiService: GeminiService,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post('run')
   async runCode(@Body() body: { code: string; input?: string }) {
     return this.executionService.executePython(body.code, body.input);
