@@ -41,6 +41,6 @@ import { GeminiModule } from '../gemini/gemini.module';
     StatsService,
     MigrationService,
   ],
-  exports: [MigrationService],
+  exports: [MigrationService, QuestionsService],
 })
 export class QuestionsModule {}

@@ -64,4 +64,47 @@ export class ExecutionService {
       return { output: '', error: err.message };
     }
   }
+  async evaluateSubmission(
+    code: string,
+    testCases: { input: string; output: string }[],
+  ): Promise<{ passed: boolean; results: any[] }> {
+    const results: any[] = [];
+    let allPassed = true;
+
+    for (const testCase of testCases) {
+      const { output, error } = await this.executePython(code, testCase.input);
+      const actualOutput = output.trim();
+      const expectedOutput = testCase.output.trim();
+
+      // Compare logic: explicit match OR floating point tolerance
+      let passed = !error && actualOutput === expectedOutput;
+
+      if (!passed && !error) {
+        // Try loose comparison for numbers (handling rounding differences like 0.125 -> 0.12 vs 0.13)
+        const numActual = parseFloat(actualOutput);
+        const numExpected = parseFloat(expectedOutput);
+
+        if (!isNaN(numActual) && !isNaN(numExpected)) {
+          // Allow a small epsilon delta (e.g. 0.02)
+          if (Math.abs(numActual - numExpected) <= 0.02) {
+            passed = true;
+          }
+        }
+      }
+
+      if (!passed) {
+        allPassed = false;
+      }
+
+      results.push({
+        input: testCase.input,
+        expected: expectedOutput,
+        actual: actualOutput,
+        error: error || null,
+        passed,
+      });
+    }
+
+    return { passed: allPassed, results };
+  }
 }

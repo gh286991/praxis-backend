@@ -117,4 +117,40 @@ export class GeminiService {
       return '無法產生提示，請再試一次。';
     }
   }
+  async checkSemantics(
+    question: QuestionData,
+    userCode: string,
+  ): Promise<{ passed: boolean; feedback: string }> {
+    const prompt = `
+      You are a strict Python code reviewer.
+      
+      Problem:
+      ${question.title}
+      ${question.description}
+      
+      User Code:
+      ${userCode}
+      
+      Task:
+      Check if the code LOGICALLY solves the problem and adheres to specific constraints (e.g., "must use a for loop", "must use list comprehension").
+      Do NOT strictly check the output (we have test cases for that). Focus on the METHOD and LOGIC.
+      
+      Output JSON only:
+      {
+        "passed": boolean, // true if logic is sound and meets constraints
+        "feedback": "string" // Short, constructive feedback in Traditional Chinese (繁體中文). If passed, say "符合題意要求". If failed, explain why.
+      }
+    `;
+
+    try {
+      const result = await this.model.generateContent(prompt);
+      const text = result.response.text();
+      const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanedText);
+    } catch (error) {
+      console.error('Error checking semantics:', error);
+      // Fail open or closed? Let's fail open but warn.
+      return { passed: true, feedback: '無法進行語意分析 (AI Error)' };
+    }
+  }
 }

@@ -16,6 +16,19 @@ export class UsersService {
   }
 
   async create(userData: Partial<User>): Promise<UserDocument> {
+    // Assign default avatar if none provided
+    if (!userData.picture) {
+      const DEFAULT_AVATARS = [
+        'https://api.dicebear.com/9.x/bottts/svg?seed=Cyber',
+        'https://api.dicebear.com/9.x/bottts/svg?seed=Tech',
+        'https://api.dicebear.com/9.x/bottts/svg?seed=Code',
+        'https://api.dicebear.com/9.x/bottts/svg?seed=Nano',
+        'https://api.dicebear.com/9.x/bottts/svg?seed=Bit',
+      ];
+      userData.picture =
+        DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)];
+    }
+
     const createdUser = new this.userModel(userData);
     return createdUser.save();
   }
