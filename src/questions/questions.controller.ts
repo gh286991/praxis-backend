@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Request, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Request,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
@@ -28,7 +39,10 @@ export class QuestionsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateQuestionDto: UpdateQuestionDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateQuestionDto: UpdateQuestionDto,
+  ) {
     return this.questionsService.update(id, updateQuestionDto);
   }
 
@@ -44,16 +58,20 @@ export class QuestionsController {
   @UseGuards(JwtAuthGuard)
   @Get('next/:category')
   async getNext(
-    @Param('category') category: string, 
+    @Param('category') category: string,
     @Request() req: any,
-    @Query('force') force: string
+    @Query('force') force: string,
   ) {
     const userId = req.user.sub;
     const forceNew = force === 'true';
-    
+
     // Try to get question from DB first (unless forced)
-    let question = await this.questionsService.getNextQuestion(userId, category, forceNew);
-    
+    let question = await this.questionsService.getNextQuestion(
+      userId,
+      category,
+      forceNew,
+    );
+
     // If no question available in DB, generate a new one
     if (!question) {
       const topicMap: Record<string, string> = {
@@ -70,7 +88,7 @@ export class QuestionsController {
 
       const topic = topicMap[category] || 'Basic Programming Design';
       const questionData = await this.geminiService.generateQuestion(topic);
-      
+
       // Save to DB
       question = await this.questionsService.create({
         category,
@@ -93,9 +111,9 @@ export class QuestionsController {
   ) {
     const userId = req.user.sub;
     const { code, isCorrect, category } = body;
-    
+
     const question = await this.questionsService.findOne(questionId);
-    
+
     const progress = await this.questionsService.recordAttempt(
       userId,
       questionId,
@@ -120,13 +138,13 @@ export class QuestionsController {
   ) {
     const { questionId, code } = body;
     const question = await this.questionsService.findOne(questionId);
-    
+
     if (!question) {
       return { error: 'Question not found' };
     }
 
     // Convert Mongoose document to plain object for interface matching if needed
-    // or pass directly if type compatible. 
+    // or pass directly if type compatible.
     // GeminiService expects QuestionData interface.
     const questionData = {
       title: question.title,

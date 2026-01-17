@@ -74,27 +74,35 @@ export class MigrationService {
   async migrateExistingQuestions() {
     console.log('🚀 Starting question migration...');
 
-    const pythonBasic = await this.subjectModel.findOne({ slug: 'python-basic' });
+    const pythonBasic = await this.subjectModel.findOne({
+      slug: 'python-basic',
+    });
     if (!pythonBasic) {
-      throw new Error('Python Basic subject not found. Run initialization first.');
+      throw new Error(
+        'Python Basic subject not found. Run initialization first.',
+      );
     }
 
-    const categories = await this.categoryModel.find({ subjectId: pythonBasic._id });
+    const categories = await this.categoryModel.find({
+      subjectId: pythonBasic._id,
+    });
     const categoryMap = new Map<string, Types.ObjectId>();
-    
-    categories.forEach(cat => {
-      categoryMap.set(cat.slug, cat._id as Types.ObjectId);
+
+    categories.forEach((cat) => {
+      categoryMap.set(cat.slug, cat._id);
     });
 
     // 更新所有現有題目
-    const questions = await this.questionModel.find({ subjectId: { $exists: false } });
-    
+    const questions = await this.questionModel.find({
+      subjectId: { $exists: false },
+    });
+
     let updated = 0;
     for (const question of questions) {
       const categoryId = categoryMap.get(question.category);
-      
+
       if (categoryId) {
-        question.subjectId = pythonBasic._id as Types.ObjectId;
+        question.subjectId = pythonBasic._id;
         question.categoryId = categoryId;
         await question.save();
         updated++;

@@ -10,7 +10,10 @@ import { StatsService } from './stats.service';
 import { StatsController } from './stats.controller';
 import { MigrationService } from './migration.service';
 import { Question, QuestionSchema } from './schemas/question.schema';
-import { UserProgress, UserProgressSchema } from './schemas/user-progress.schema';
+import {
+  UserProgress,
+  UserProgressSchema,
+} from './schemas/user-progress.schema';
 import { Subject, SubjectSchema } from './schemas/subject.schema';
 import { Category, CategorySchema } from './schemas/category.schema';
 import { GeminiModule } from '../gemini/gemini.module';

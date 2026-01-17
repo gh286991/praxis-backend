@@ -14,7 +14,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
 
     if (!clientID || !clientSecret) {
-      console.warn('⚠️  Google Client ID or Secret not found. Google Login will not work.');
+      console.warn(
+        '⚠️  Google Client ID or Secret not found. Google Login will not work.',
+      );
     }
 
     super({

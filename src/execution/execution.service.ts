@@ -6,7 +6,10 @@ import * as os from 'os';
 
 @Injectable()
 export class ExecutionService {
-  async executePython(code: string, input: string = ''): Promise<{ output: string; error?: string }> {
+  async executePython(
+    code: string,
+    input: string = '',
+  ): Promise<{ output: string; error?: string }> {
     const tmpDir = os.tmpdir();
     const fileName = `script_${Date.now()}_${Math.random().toString(36).substring(7)}.py`;
     const filePath = path.join(tmpDir, fileName);
@@ -16,7 +19,7 @@ export class ExecutionService {
 
       return new Promise((resolve) => {
         const pythonProcess = spawn('python3', [filePath]);
-        
+
         let stdout = '';
         let stderr = '';
 
@@ -42,7 +45,10 @@ export class ExecutionService {
           }
 
           if (code !== 0) {
-            resolve({ output: stdout, error: stderr || `Process exited with code ${code}` });
+            resolve({
+              output: stdout,
+              error: stderr || `Process exited with code ${code}`,
+            });
           } else {
             resolve({ output: stdout });
           }
@@ -50,8 +56,8 @@ export class ExecutionService {
 
         // Timeout safety
         setTimeout(() => {
-            pythonProcess.kill();
-            resolve({ output: stdout, error: 'Execution Timed Out' });
+          pythonProcess.kill();
+          resolve({ output: stdout, error: 'Execution Timed Out' });
         }, 5000); // 5s timeout
       });
     } catch (err) {

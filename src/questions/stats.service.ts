@@ -144,10 +144,7 @@ export class StatsService {
     const stats: SubjectStats[] = [];
 
     for (const subject of subjects) {
-      const subjectStats = await this.getSubjectStats(
-        userId,
-        subject.slug,
-      );
+      const subjectStats = await this.getSubjectStats(userId, subject.slug);
       if (subjectStats) {
         stats.push(subjectStats);
       }

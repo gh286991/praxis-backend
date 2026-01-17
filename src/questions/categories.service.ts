@@ -22,10 +22,7 @@ export class CategoriesService {
   /**
    * Get category by slug within a subject
    */
-  async findBySlug(
-    subjectId: string,
-    slug: string,
-  ): Promise<Category | null> {
+  async findBySlug(subjectId: string, slug: string): Promise<Category | null> {
     return this.categoryModel
       .findOne({ subjectId: new Types.ObjectId(subjectId), slug })
       .exec();

@@ -42,7 +42,10 @@ export class SubjectsService {
   /**
    * Update subject
    */
-  async update(id: string, subjectData: Partial<Subject>): Promise<Subject | null> {
+  async update(
+    id: string,
+    subjectData: Partial<Subject>,
+  ): Promise<Subject | null> {
     return this.subjectModel
       .findByIdAndUpdate(id, subjectData, { new: true })
       .exec();

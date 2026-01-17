@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 import { Subject } from './schemas/subject.schema';
 
@@ -23,10 +32,7 @@ export class SubjectsController {
   }
 
   @Put(':id')
-  async update(
-    @Param('id') id: string,
-    @Body() subjectData: Partial<Subject>,
-  ) {
+  async update(@Param('id') id: string, @Body() subjectData: Partial<Subject>) {
     return this.subjectsService.update(id, subjectData);
   }
 

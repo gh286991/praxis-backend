@@ -10,7 +10,8 @@ import { UserProgress } from './schemas/user-progress.schema';
 export class QuestionsService {
   constructor(
     @InjectModel(Question.name) private questionModel: Model<Question>,
-    @InjectModel(UserProgress.name) private userProgressModel: Model<UserProgress>,
+    @InjectModel(UserProgress.name)
+    private userProgressModel: Model<UserProgress>,
   ) {}
 
   async create(createQuestionDto: CreateQuestionDto): Promise<Question> {
@@ -30,7 +31,10 @@ export class QuestionsService {
     return question;
   }
 
-  async update(id: string, updateQuestionDto: UpdateQuestionDto): Promise<Question> {
+  async update(
+    id: string,
+    updateQuestionDto: UpdateQuestionDto,
+  ): Promise<Question> {
     const updatedQuestion = await this.questionModel
       .findByIdAndUpdate(id, updateQuestionDto, { new: true })
       .exec();
@@ -41,7 +45,9 @@ export class QuestionsService {
   }
 
   async remove(id: string): Promise<Question> {
-    const deletedQuestion = await this.questionModel.findByIdAndDelete(id).exec();
+    const deletedQuestion = await this.questionModel
+      .findByIdAndDelete(id)
+      .exec();
     if (!deletedQuestion) {
       throw new NotFoundException(`Question with ID ${id} not found`);
     }
@@ -101,11 +107,15 @@ export class QuestionsService {
     category: string,
     force: boolean = false,
   ): Promise<Question | null> {
-    console.log(`Getting next question for user ${userId} in category ${category}, force: ${force}`);
-    
+    console.log(
+      `Getting next question for user ${userId} in category ${category}, force: ${force}`,
+    );
+
     if (force) {
-        console.log('Force true, bypassing DB check to return null (triggering generation)');
-        return null; // Return null to trigger generation in controller
+      console.log(
+        'Force true, bypassing DB check to return null (triggering generation)',
+      );
+      return null; // Return null to trigger generation in controller
     }
 
     // Get all question IDs the user has already attempted in this category
@@ -114,8 +124,11 @@ export class QuestionsService {
       .select('questionId')
       .exec();
 
-    const attemptedQuestionIds = attemptedQuestions.map(up => up.questionId);
-    console.log(`User has attempted ${attemptedQuestionIds.length} questions:`, attemptedQuestionIds);
+    const attemptedQuestionIds = attemptedQuestions.map((up) => up.questionId);
+    console.log(
+      `User has attempted ${attemptedQuestionIds.length} questions:`,
+      attemptedQuestionIds,
+    );
 
     // Find a question in this category that user hasn't attempted
     const availableQuestion = await this.questionModel
@@ -127,9 +140,9 @@ export class QuestionsService {
       .exec();
 
     if (availableQuestion) {
-        console.log(`Found available question from DB: ${availableQuestion._id}`);
+      console.log(`Found available question from DB: ${availableQuestion._id}`);
     } else {
-        console.log('No available question in DB, will generate new one.');
+      console.log('No available question in DB, will generate new one.');
     }
 
     return availableQuestion;
@@ -147,8 +160,10 @@ export class QuestionsService {
     subjectId?: string,
     categoryId?: string,
   ): Promise<UserProgress> {
-    console.log(`Recording attempt for user ${userId}, question ${questionId}, correct: ${isCorrect}`);
-    
+    console.log(
+      `Recording attempt for user ${userId}, question ${questionId}, correct: ${isCorrect}`,
+    );
+
     // Use findOneAndUpdate with upsert to maintain one record per user per question
     const updateData: any = {
       $set: {
@@ -172,18 +187,20 @@ export class QuestionsService {
       updateData.$set.categoryId = new Types.ObjectId(categoryId);
     }
 
-    const progress = await this.userProgressModel.findOneAndUpdate(
-      {
-        userId: new Types.ObjectId(userId),
-        questionId: new Types.ObjectId(questionId),
-      },
-      updateData,
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      },
-    ).exec();
+    const progress = await this.userProgressModel
+      .findOneAndUpdate(
+        {
+          userId: new Types.ObjectId(userId),
+          questionId: new Types.ObjectId(questionId),
+        },
+        updateData,
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        },
+      )
+      .exec();
 
     // If user passed this time, update isCorrect to true (once passed, stays passed)
     if (isCorrect && !progress.isCorrect) {
@@ -191,7 +208,9 @@ export class QuestionsService {
       await progress.save();
     }
 
-    console.log(`Progress upserted: ${progress._id}, attempts: ${progress.attemptCount}, passed: ${progress.passedCount}`);
+    console.log(
+      `Progress upserted: ${progress._id}, attempts: ${progress.attemptCount}, passed: ${progress.passedCount}`,
+    );
 
     // Increment question usage count
     await this.questionModel
@@ -211,10 +230,12 @@ export class QuestionsService {
     }
 
     const total = await this.userProgressModel.countDocuments(filter).exec();
-    const correct = await this.userProgressModel.countDocuments({
-      ...filter,
-      isCorrect: true,
-    }).exec();
+    const correct = await this.userProgressModel
+      .countDocuments({
+        ...filter,
+        isCorrect: true,
+      })
+      .exec();
 
     return {
       total,
@@ -236,21 +257,25 @@ export class QuestionsService {
 
     console.log(`Found ${history.length} history records`);
 
-    return history.map(record => {
-      // Handle case where question might have been deleted
-      if (!record.questionId) {
-          console.warn(`History record ${record._id} has missing question reference`);
+    return history
+      .map((record) => {
+        // Handle case where question might have been deleted
+        if (!record.questionId) {
+          console.warn(
+            `History record ${record._id} has missing question reference`,
+          );
           return null;
-      }
-      
-      const question = record.questionId as any;
-      return {
-        questionId: question._id,
-        title: question.title,
-        isCorrect: record.isCorrect,
-        attemptedAt: record.attemptedAt,
-        code: record.code, // Optional: if we want to show their code
-      };
-    }).filter(item => item !== null);
+        }
+
+        const question = record.questionId as any;
+        return {
+          questionId: question._id,
+          title: question.title,
+          isCorrect: record.isCorrect,
+          attemptedAt: record.attemptedAt,
+          code: record.code, // Optional: if we want to show their code
+        };
+      })
+      .filter((item) => item !== null);
   }
 }
