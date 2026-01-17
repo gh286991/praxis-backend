@@ -21,6 +21,20 @@ COPY backend ./backend
 WORKDIR /app/backend
 RUN pnpm build
 
+# Production# Base stage
+FROM node:20-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# Builder stage
+FROM base AS builder
+WORKDIR /app
+COPY package.json pnpm-lock.yaml* ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile || pnpm install
+COPY . .
+RUN pnpm build
+
 # Production stage
 FROM node:20-alpine AS runner
 
@@ -29,15 +43,11 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy workspace config for pnpm
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY backend/package.json ./backend/
+# Copy only necessary files for production
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 
-# Install PROD dependencies only (ensure no frozen-lockfile to handle out-of-sync lock)
-RUN pnpm install --prod --filter backend
+EXPOSE 3001
 
-# Copy built app
-COPY --from=builder /app/backend/dist ./backend/dist
-
-WORKDIR /app/backend
 CMD ["node", "dist/main"]
