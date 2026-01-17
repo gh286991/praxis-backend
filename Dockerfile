@@ -77,7 +77,7 @@ COPY --from=builder /app/package.json ./package.json
 # Wait, user said "deployment I only use this", implying the context is likely root or backend.
 # The original Dockerfile copied `backend/package.json` so context was root.
 # We need to find where nsjail.cfg is. It's in `backend/docker/nsjail/nsjail.cfg`.
-COPY backend/docker/nsjail/nsjail.cfg /app/nsjail.cfg
+COPY --from=builder /app/backend/docker/nsjail/nsjail.cfg /app/nsjail.cfg
 
 EXPOSE 3001
 
