@@ -1,5 +1,5 @@
-# === Stage 1: Build NsJail ===
-FROM python:3.11-slim AS nsjail-builder
+# === Stage 1: Build NsJail on Debian Bookworm ===
+FROM debian:bookworm-slim AS nsjail-builder
 
 RUN apt-get update && apt-get install -y \
     autoconf \
@@ -22,7 +22,7 @@ WORKDIR /tmp/nsjail
 RUN make && mv nsjail /bin/nsjail
 
 # === Stage 2: Build NestJS App ===
-FROM node:20-slim AS builder
+FROM node:20-bookworm-slim AS builder
 
 # Install pnpm
 ENV PNPM_HOME="/pnpm"
@@ -43,8 +43,8 @@ COPY . .
 # Build the application
 RUN pnpm build
 
-# === Stage 3: Production Runner ===
-FROM node:20-slim AS runner
+# === Stage 3: Production Runner (Same Debian version as nsjail-builder) ===
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
 
@@ -55,7 +55,7 @@ RUN npm install -g pnpm && corepack enable
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
-    libprotobuf-dev \
+    libprotobuf32 \
     libnl-route-3-200 \
     && rm -rf /var/lib/apt/lists/*
 
