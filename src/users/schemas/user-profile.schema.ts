@@ -1,0 +1,30 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type UserProfileDocument = UserProfile & Document;
+
+@Schema({ timestamps: true })
+export class UserProfile {
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
+  userId: Types.ObjectId;
+
+  @Prop()
+  displayName: string;
+
+  @Prop()
+  bio: string;
+
+  @Prop({ default: 0 })
+  totalQuestionsCompleted: number;
+
+  @Prop({ default: 0 })
+  totalQuestionsPassed: number;
+
+  @Prop({ default: 0 })
+  totalTokensUsed: number;
+
+  @Prop({ default: Date.now })
+  joinedAt: Date;
+}
+
+export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);

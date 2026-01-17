@@ -5,6 +5,7 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { Question } from './schemas/question.schema';
 import { UserProgress } from './schemas/user-progress.schema';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class QuestionsService {
@@ -12,6 +13,7 @@ export class QuestionsService {
     @InjectModel(Question.name) private questionModel: Model<Question>,
     @InjectModel(UserProgress.name)
     private userProgressModel: Model<UserProgress>,
+    private usersService: UsersService,
   ) {}
 
   async create(createQuestionDto: CreateQuestionDto): Promise<Question> {
@@ -187,6 +189,16 @@ export class QuestionsService {
       updateData.$set.categoryId = new Types.ObjectId(categoryId);
     }
 
+    // First, check if this question progress already exists
+    const existingProgress = await this.userProgressModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        questionId: new Types.ObjectId(questionId),
+      })
+      .exec();
+    
+    const isFirstAttempt = !existingProgress;
+
     const progress = await this.userProgressModel
       .findOneAndUpdate(
         {
@@ -216,6 +228,9 @@ export class QuestionsService {
     await this.questionModel
       .findByIdAndUpdate(questionId, { $inc: { usedCount: 1 } })
       .exec();
+
+    // Update UserProfile statistics
+    await this.updateProfileStats(userId, isCorrect, isFirstAttempt);
 
     return progress;
   }
@@ -277,5 +292,36 @@ export class QuestionsService {
         };
       })
       .filter((item) => item !== null);
+  }
+
+  /**
+   * Update UserProfile statistics when a question is attempted
+   */
+  private async updateProfileStats(
+    userId: string,
+    isCorrect: boolean,
+    isFirstAttempt: boolean,
+  ): Promise<void> {
+    try {
+      const profile = await this.usersService.findOrCreateProfile(userId);
+      
+      // Only increment totalQuestionsCompleted on first attempt
+      if (isFirstAttempt) {
+        profile.totalQuestionsCompleted += 1;
+      }
+      
+      // Only increment totalQuestionsPassed if correct and not already passed
+      if (isCorrect && isFirstAttempt) {
+        profile.totalQuestionsPassed += 1;
+      }
+      
+      await profile.save();
+      console.log(
+        `Updated profile stats for user ${userId}: completed=${profile.totalQuestionsCompleted}, passed=${profile.totalQuestionsPassed}`,
+      );
+    } catch (error) {
+      console.error('Failed to update profile stats:', error);
+      // Don't throw - we don't want to fail the question submission if profile update fails
+    }
   }
 }

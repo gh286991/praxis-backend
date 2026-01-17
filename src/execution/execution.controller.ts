@@ -1,7 +1,8 @@
-import { Controller, Post, Body, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Body, NotFoundException, Request, UseGuards } from '@nestjs/common';
 import { ExecutionService } from './execution.service';
 import { QuestionsService } from '../questions/questions.service';
 import { GeminiService } from '../gemini/gemini.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('execution')
 export class ExecutionController {
@@ -16,10 +17,14 @@ export class ExecutionController {
     return this.executionService.executePython(body.code, body.input);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('submit')
   async submitCode(
     @Body() body: { code: string; questionId: string },
+    @Request() req: any,
   ) {
+    const userId = req.user.sub || req.user._id?.toString();
+    
     // 1. Fetch Question
     const question = await this.questionsService.findOne(body.questionId);
     if (!question) {
@@ -31,7 +36,7 @@ export class ExecutionController {
       // Execute Hidden Test Cases
       this.executionService.evaluateSubmission(body.code, question.testCases || []),
       // AI Semantic Analysis
-      this.geminiService.checkSemantics(question, body.code),
+      this.geminiService.checkSemantics(question, body.code, userId),
     ]);
 
     // 3. Determine Success

@@ -10,11 +10,16 @@ export interface QuestionData {
   testCases: { input: string; output: string }[];
 }
 
+import { UsageService } from '../users/usage.service';
+
 @Injectable()
 export class GeminiService {
   private model: GenerativeModel;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private usageService: UsageService,
+  ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not defined');
@@ -23,8 +28,27 @@ export class GeminiService {
     this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   }
 
+  private async logTokens(
+    result: any,
+    endpoint: string,
+    userId: string = 'system',
+  ) {
+    if (result.response.usageMetadata) {
+      const { promptTokenCount, candidatesTokenCount } =
+        result.response.usageMetadata;
+      await this.usageService.logUsage(
+        userId,
+        'gemini-2.5-flash-lite',
+        endpoint,
+        promptTokenCount,
+        candidatesTokenCount,
+      );
+    }
+  }
+
   async generateQuestion(
     topic: string = 'Basic Python',
+    userId?: string,
   ): Promise<QuestionData> {
     const prompt = `
       You are a Python exam question generator for TQC (Techficiency Quota Certification) - Python General Purpose Programming.
@@ -70,6 +94,9 @@ export class GeminiService {
         .replace(/```json/g, '')
         .replace(/```/g, '')
         .trim();
+
+      await this.logTokens(result, 'generate_question', userId);
+
       return JSON.parse(cleanedText) as QuestionData;
     } catch (error) {
       console.error('Error generating question:', error);
@@ -80,6 +107,7 @@ export class GeminiService {
   async generateHint(
     question: QuestionData,
     userCode: string,
+    userId?: string,
   ): Promise<string> {
     const prompt = `
       You are a helpful Python tutor assisting a student with a coding problem.
@@ -111,6 +139,7 @@ export class GeminiService {
 
     try {
       const result = await this.model.generateContent(prompt);
+      await this.logTokens(result, 'generate_hint', userId);
       return result.response.text();
     } catch (error) {
       console.error('Error generating hint:', error);
@@ -120,6 +149,7 @@ export class GeminiService {
   async checkSemantics(
     question: QuestionData,
     userCode: string,
+    userId?: string,
   ): Promise<{ passed: boolean; feedback: string }> {
     const prompt = `
       You are a strict Python code reviewer.
@@ -144,6 +174,7 @@ export class GeminiService {
 
     try {
       const result = await this.model.generateContent(prompt);
+      await this.logTokens(result, 'check_semantics', userId);
       const text = result.response.text();
       const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText);

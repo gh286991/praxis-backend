@@ -19,6 +19,9 @@ export interface ProgressStats {
   failedQuestions: number;
   completionRate: number;
   passRate: number;
+  // Aliases for frontend compatibility
+  totalAttempts?: number;  // Same as completedQuestions
+  passedCount?: number;     // Same as passedQuestions
 }
 
 export interface SubjectStats extends ProgressStats {
@@ -26,6 +29,8 @@ export interface SubjectStats extends ProgressStats {
   subjectName: string;
   subjectSlug: string;
   categories: CategoryStats[];
+  // Additional alias for frontend
+  subjectTitle?: string;    // Same as subjectName
 }
 
 export interface CategoryStats extends ProgressStats {
@@ -106,26 +111,44 @@ export class StatsService {
           ? (passedQuestions / completedQuestions) * 100
           : 0,
       categories: categoryStats,
+      // Frontend compatibility aliases
+      totalAttempts: completedQuestions,
+      passedCount: passedQuestions,
+      subjectTitle: subject.name,
     };
   }
 
   /**
    * Get user's progress for a specific category
+   * Supports both legacy (category string) and new (subjectId/categoryId) formats
    */
   async getCategoryStats(
     userId: string,
     subjectId: string,
     categoryId: string,
   ): Promise<ProgressStats> {
-    // Count total questions in category (assuming we'll have this data)
-    // For now, we'll count attempted questions
-    const progress = await this.userProgressModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        subjectId: new Types.ObjectId(subjectId),
-        categoryId: new Types.ObjectId(categoryId),
-      })
-      .exec();
+    // Build query to support both legacy and new architecture
+    const query: any = {
+      userId: new Types.ObjectId(userId),
+      $or: [
+        // New architecture: using subjectId and categoryId
+        {
+          subjectId: new Types.ObjectId(subjectId),
+          categoryId: new Types.ObjectId(categoryId),
+        },
+      ],
+    };
+
+    // Get category to find legacy category string (e.g., "category1")
+    const category = await this.categoryModel.findById(categoryId);
+    if (category?.slug) {
+      // Add legacy format to the OR query
+      query.$or.push({
+        category: category.slug, // Legacy: using category string
+      });
+    }
+
+    const progress = await this.userProgressModel.find(query).exec();
 
     const completedQuestions = progress.length;
     const passedQuestions = progress.filter((p) => p.isCorrect).length;
@@ -141,6 +164,8 @@ export class StatsService {
         completedQuestions > 0
           ? (passedQuestions / completedQuestions) * 100
           : 0,
+      totalAttempts: completedQuestions,
+      passedCount: passedQuestions,
     };
   }
 

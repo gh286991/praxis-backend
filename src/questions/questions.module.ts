@@ -17,6 +17,7 @@ import {
 import { Subject, SubjectSchema } from './schemas/subject.schema';
 import { Category, CategorySchema } from './schemas/category.schema';
 import { GeminiModule } from '../gemini/gemini.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GeminiModule } from '../gemini/gemini.module';
       { name: Category.name, schema: CategorySchema },
     ]),
     GeminiModule,
+    UsersModule,
   ],
   controllers: [
     QuestionsController,

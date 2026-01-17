@@ -87,7 +87,7 @@ export class QuestionsController {
       };
 
       const topic = topicMap[category] || 'Basic Programming Design';
-      const questionData = await this.geminiService.generateQuestion(topic);
+      const questionData = await this.geminiService.generateQuestion(topic, userId);
 
       // Save to DB
       question = await this.questionsService.create({

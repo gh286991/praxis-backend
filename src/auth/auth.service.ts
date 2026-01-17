@@ -24,6 +24,8 @@ export class AuthService {
         picture,
         googleId: id,
       });
+      // Create user profile when creating a new user
+      await this.usersService.findOrCreateProfile(user._id.toString());
     }
 
     return user;
@@ -47,6 +49,8 @@ export class AuthService {
           picture: 'https://github.com/shadcn.png', // Placeholder
           googleId: 'dev_test_user',
         });
+        // Create user profile when creating a new user
+        await this.usersService.findOrCreateProfile(user._id.toString());
       }
       return this.login(user);
     }
