@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
+import { MigrationService } from './migration.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,7 +22,15 @@ export class QuestionsController {
   constructor(
     private readonly questionsService: QuestionsService,
     private readonly geminiService: GeminiService,
+    private readonly migrationService: MigrationService,
   ) {}
+
+  @Post('migration/init')
+  async initMigration() {
+    await this.migrationService.initializePythonBasic();
+    await this.migrationService.createOtherSubjects();
+    return { success: true, message: 'Initialization completed' };
+  }
 
   @Post()
   create(@Body() createQuestionDto: CreateQuestionDto) {
