@@ -9,139 +9,124 @@ export class ExecutionService {
     code: string,
     input: string = '',
   ): Promise<{ output: string; error?: string }> {
-    // Use a project-local temp directory to ensure reliable sharing with Docker
-    // Host path: ./temp (or /app/temp inside container)
-    // This path must be shared/accessible by spawned containers
-    const tmpDir = path.join(process.cwd(), 'temp');
-    await fs.mkdir(tmpDir, { recursive: true });
+    // Piston API Integration
+    const pistonEnvVar = process.env.PISTON_URL;
+    // Default to Public API if not configured
+    let pistonEndpoint = 'https://emkc.org/api/v2/piston/execute';
 
-    const fileName = `script_${Date.now()}_${Math.random().toString(36).substring(7)}.py`;
-    const filePath = path.join(tmpDir, fileName);
+    if (pistonEnvVar) {
+      if (pistonEnvVar.endsWith('/execute')) {
+        pistonEndpoint = pistonEnvVar;
+      } else {
+        // Assume base URL provided, append standard v2 path
+        pistonEndpoint = `${pistonEnvVar.replace(/\/$/, '')}/api/v2/execute`;
+      }
+    }
 
-    try {
-      // 1. Write user code to a temp file
-      await fs.writeFile(filePath, code);
+    console.log(`[ExecutionService] Using Piston Endpoint: ${pistonEndpoint}`);
 
-      return new Promise((resolve) => {
-        // Execution Mode Selection:
-        // - EXECUTION_MODE=nsjail: Use local nsjail (requires privileged container)
-        // - EXECUTION_MODE=docker-socket: Spawn sibling container via Docker socket (default)
-        // - EXECUTION_MODE=docker-exec: Exec into existing container (legacy sidecar mode)
-        
-        const executionMode = process.env.EXECUTION_MODE || 'docker-socket';
-        const runnerContainer = process.env.PYTHON_RUNNER_CONTAINER_NAME;
-        
-        let command = '';
-        let args: string[] = [];
+    // Legacy/Local Modes
+    const executionMode = process.env.EXECUTION_MODE;
 
-        if (executionMode === 'nsjail') {
-          // Local NsJail Mode (requires --privileged)
-          command = 'nsjail';
-          args = [
-            '--config',
-            '/app/nsjail.cfg',
-            '--',
-            '/usr/bin/python3',
-            filePath,
-          ];
-        } else if (executionMode === 'docker-exec' && runnerContainer) {
-          // Docker Exec Mode (exec into existing sidecar container)
-          const containerFilePath = `/app/temp/${fileName}`;
-          command = 'docker';
-          args = [
-            'exec',
-            '-i',
-            runnerContainer,
-            'nsjail',
-            '--config',
-            '/app/nsjail.cfg',
-            '--',
-            '/usr/local/bin/python3',
-            containerFilePath,
-          ];
-        } else {
-          // Docker Socket Mode (spawn ephemeral sibling container)
-          // This works without privileged mode as long as Docker socket is mounted
-          // Uses resource limits via Docker instead of nsjail
-          command = 'docker';
-          args = [
-            'run',
-            '--rm',                           // Auto-remove container after execution
-            '-i',                             // Interactive (for stdin)
-            '--network', 'none',              // No network access (security)
-            '--memory', '64m',                // Memory limit
-            '--cpus', '0.5',                  // CPU limit
-            '--pids-limit', '32',             // Process limit
-            '--read-only',                    // Read-only filesystem
-            '--tmpfs', '/tmp:size=10m',       // Writable /tmp with size limit
-            '-v', `${filePath}:/code/script.py:ro`,  // Mount script as read-only
-            'python:3.11-slim',               // Use official Python image
-            'timeout', '5',                   // 5 second timeout
-            'python3', '/code/script.py',
-          ];
-        }
+    if (
+      !pistonEnvVar &&
+      (executionMode === 'nsjail' || executionMode === 'direct')
+    ) {
+      // ... Keep existing logic for fallback if needed, or simplify to reduce complexity?
+      // Given user wants public security, we primarily push for Piston.
+      // But let's keep the 'direct' mode as a dev fallback if PISTON_URL is missing.
+      if (executionMode === 'direct') {
+        try {
+          const tmpDir = path.join(process.cwd(), 'temp');
+          await fs.mkdir(tmpDir, { recursive: true });
+          const fileName = `script_${Date.now()}_${Math.random().toString(36).substring(7)}.py`;
+          const filePath = path.join(tmpDir, fileName);
 
-        const pythonProcess = spawn(command, args);
-
-        let stdout = '';
-        let stderr = '';
-
-        if (input) {
-          pythonProcess.stdin.write(input);
-          pythonProcess.stdin.end();
-        } else {
-          pythonProcess.stdin.end();
-        }
-
-        pythonProcess.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        pythonProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        pythonProcess.on('close', async (exitCode) => {
-          // Cleanup temp file
-          try {
-            await fs.unlink(filePath);
-          } catch (e) {
-            console.error('Error deleting tmp file:', e);
-          }
-
-          if (exitCode !== 0) {
-            // Exit code 137 = OOMKilled, 124 = timeout
-            let errorMsg = stderr || `Process exited with code ${exitCode}`;
-            
-            if (exitCode === 137) {
-              errorMsg = 'Error: Memory Limit Exceeded';
-            } else if (exitCode === 124) {
-              errorMsg = 'Error: Execution Timed Out';
+          await fs.writeFile(filePath, code);
+          return new Promise((resolve) => {
+            const pythonProcess = spawn('python3', [filePath]);
+            let stdout = '',
+              stderr = '';
+            if (input) {
+              pythonProcess.stdin.write(input);
+              pythonProcess.stdin.end();
+            } else {
+              pythonProcess.stdin.end();
             }
-
-            resolve({
-              output: stdout,
-              error: errorMsg,
+            pythonProcess.stdout.on('data', (d) => (stdout += d.toString()));
+            pythonProcess.stderr.on('data', (d) => (stderr += d.toString()));
+            pythonProcess.on('close', async (code) => {
+              try {
+                await fs.unlink(filePath);
+              } catch {}
+              if (code !== 0)
+                resolve({
+                  output: stdout,
+                  error: stderr || `Exited with ${code}`,
+                });
+              else resolve({ output: stdout });
             });
-          } else {
-            resolve({ output: stdout });
-          }
-        });
+            setTimeout(() => {
+              pythonProcess.kill();
+              resolve({ output: stdout, error: 'Timeout' });
+            }, 5000);
+          });
+        } catch (e) {
+          return { output: '', error: e.message };
+        }
+      }
+    }
 
-        pythonProcess.on('error', (err) => {
-          resolve({ output: '', error: `Spawn error: ${err.message}` });
-        });
+    // Default: Use Piston API
+    try {
+      // Use dynamically imported axios
 
-        // Host-side timeout safety net
-        setTimeout(() => {
-          pythonProcess.kill();
-          resolve({ output: stdout, error: 'Error: Execution Timed Out' });
-        }, 10000); // 10s total timeout
+      const axios = require('axios');
+
+      const response = await axios.post(pistonEndpoint, {
+        language: 'python',
+        version: '3.10.0', // Request default python version
+        files: [
+          {
+            content: code,
+          },
+        ],
+        stdin: input,
+        run_timeout: 5000,
+        compile_timeout: 10000,
       });
-    } catch (err) {
-      return { output: '', error: err.message };
+
+      const { run } = response.data;
+
+      if (run.signal === 'SIGKILL' || run.signal === 'SIGTERM') {
+        return {
+          output: run.output,
+          error: 'Error: Execution Timed Out or Terminated',
+        };
+      }
+
+      if (run.code !== 0) {
+        return {
+          output: run.output,
+          error: run.stderr || `Error: Process exited with code ${run.code}`,
+        };
+      }
+
+      return { output: run.output };
+    } catch (err: any) {
+      console.error('Piston execution error:', err.message);
+      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+        return {
+          output: '',
+          error: 'Error: Execution service unavailable (Piston)',
+        };
+      }
+      return { output: '', error: `Execution Error: ${err.message}` };
     }
   }
+
+  // Remove unused Docker helpers if no longer needed
+  // private runDockerCommand...
 
   async evaluateSubmission(
     code: string,
