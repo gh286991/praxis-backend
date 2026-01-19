@@ -43,8 +43,8 @@ export class Question extends Document {
   @Prop({ type: Array, default: [] })
   testCases: TestCase[]; // 改進：10-20 個測試案例
 
-  @Prop({ type: [String], default: [] })
-  tags: string[]; // 新增：題目標籤
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Tag' }], default: [] })
+  tags: Types.ObjectId[]; // 新增：題目標籤 (關聯到 Tag)
 
   @Prop({ type: String, enum: ['easy', 'medium', 'hard'], required: false })
   difficulty?: string; // 新增：難度

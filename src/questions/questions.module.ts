@@ -16,6 +16,7 @@ import {
 } from './schemas/user-progress.schema';
 import { Subject, SubjectSchema } from './schemas/subject.schema';
 import { Category, CategorySchema } from './schemas/category.schema';
+import { Tag, TagSchema } from './schemas/tag.schema';
 import { GeminiModule } from '../gemini/gemini.module';
 import { UsersModule } from '../users/users.module';
 
@@ -26,6 +27,7 @@ import { UsersModule } from '../users/users.module';
       { name: UserProgress.name, schema: UserProgressSchema },
       { name: Subject.name, schema: SubjectSchema },
       { name: Category.name, schema: CategorySchema },
+      { name: Tag.name, schema: TagSchema },
     ]),
     GeminiModule,
     UsersModule,

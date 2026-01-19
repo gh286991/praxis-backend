@@ -102,7 +102,7 @@ export class ExecutionController {
           sampleOutput: question.sampleOutput,
           samples: question.samples || [],
           testCases: question.testCases,
-          tags: question.tags || [],
+          tags: (question.tags || []).map((t) => t.toString()),
           difficulty: (question.difficulty as 'easy' | 'medium' | 'hard') || 'easy',
           constraints: question.constraints,
         },

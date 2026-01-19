@@ -33,6 +33,12 @@ export class QuestionsController {
     return { success: true, message: 'Initialization completed' };
   }
 
+  @Post('migration/init-tags')
+  async initTags() {
+    const result = await this.migrationService.initializeTags();
+    return { success: true, ...result };
+  }
+
   @Post()
   create(@Body() createQuestionDto: CreateQuestionDto) {
     return this.questionsService.create(createQuestionDto);
@@ -110,6 +116,9 @@ export class QuestionsController {
         generatedAt: new Date(),
         isAIGenerated: true,
       });
+      
+      // Populate tags before returning to ensuring frontend gets full objects
+      await question.populate('tags');
 
       console.log(
         `AI generated question saved: ${String(question._id)} by user ${userId} at ${new Date().toISOString()}`,
@@ -182,7 +191,7 @@ export class QuestionsController {
       sampleOutput: question.sampleOutput,
       samples: question.samples || [],
       testCases: question.testCases,
-      tags: question.tags || [],
+      tags: (question.tags || []).map((t) => t.toString()),
       difficulty: (question.difficulty as 'easy' | 'medium' | 'hard') || 'easy',
       constraints: question.constraints,
     };

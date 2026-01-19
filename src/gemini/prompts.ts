@@ -7,7 +7,7 @@ export const PROMPT_VERSIONS = {
   CHECK_SEMANTICS: '1.0.0',
 };
 
-export const GENERATE_QUESTION_PROMPT = (topic: string) => ({
+export const GENERATE_QUESTION_PROMPT = (topic: string, availableTags: string = '') => ({
   version: PROMPT_VERSIONS.GENERATE_QUESTION,
   text: `
 You are a Python exam question generator for TQC (Techficiency Quota Certification) - Python General Purpose Programming.
@@ -58,10 +58,18 @@ IMPORTANT: Output MUST be a valid JSON object with the following structure:
     // ... 總共 10-20 個測試案例
   ],
   
-  "tags": ["主題1", "主題2", "技巧1"],  // 3-5 個繁體中文標籤
+  "tags": ["tag-slug-1", "tag-slug-2"],  // MUST be selected from the Available Tags list below (return SLUGS only)
   "difficulty": "easy",  // or "medium" or "hard"
   "constraints": "特殊約束說明（如果有，否則為 null）"
 }
+
+Available Tags (Select 3-5 that match the question):
+${availableTags}
+
+CRITICAL requirements for Tags:
+- You MUST ONLY use tags from the "Available Tags" list above.
+- Return the "slug" of the tag (e.g., "list-comprehension", not "列表推導式").
+- Do NOT invent new tags.
 
 CRITICAL REQUIREMENTS:
 
@@ -78,10 +86,9 @@ CRITICAL REQUIREMENTS:
      * "corner": 特殊情況（10%）- 特殊字元、重複值、負數等
    - 每個測試都要有 description 說明測試目的
 
-3. **標籤 (tags)** - 必須產生 3-5 個（繁體中文）:
-   - 主題類：如「字串處理」、「數學運算」、「迴圈」、「條件判斷」
-   - 技巧類：如「排序」、「搜尋」、「格式化」、「累加」
-   - 資料結構：如「串列」、「字典」、「集合」
+3. **標籤 (tags)** - 必須產生 3-5 個:
+   - 請從上方提供的 Available Tags 列表中選擇最合適的標籤 Slug。
+   - 確保涵蓋概念、資料結構與演算法層面。
 
 4. **難度 (difficulty)**:
    - "easy": 基本語法，單一概念，直觀邏輯

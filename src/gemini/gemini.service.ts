@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { UsageService } from '../users/usage.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Tag } from '../questions/schemas/tag.schema';
 import { QuestionData } from './types';
 import { 
   GENERATE_QUESTION_PROMPT, 
@@ -16,6 +19,7 @@ export class GeminiService {
   constructor(
     private configService: ConfigService,
     private usageService: UsageService,
+    @InjectModel(Tag.name) private tagModel: Model<Tag>,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -47,7 +51,13 @@ export class GeminiService {
     topic: string = 'Basic Python',
     userId?: string,
   ): Promise<QuestionData> {
-    const { text, version } = GENERATE_QUESTION_PROMPT(topic);
+    // 1. Fetch all available tags to instruct the AI
+    const validTags = await this.tagModel.find().lean();
+    const tagsList = validTags
+      .map((t) => `- ${t.name} (slug: ${t.slug}) [${t.type}]`)
+      .join('\n');
+
+    const { text, version } = GENERATE_QUESTION_PROMPT(topic, tagsList);
 
     try {
       const result = await this.model.generateContent(text);
@@ -77,8 +87,21 @@ export class GeminiService {
         `Difficulty: ${parsedData.difficulty} | ` +
         `Samples: ${parsedData.samples?.length || 0} | ` +
         `Tests: ${parsedData.testCases?.length || 0} | ` +
-        `Tags: ${parsedData.tags?.join(', ') || 'none'}`,
+        `Tags (Slug): ${parsedData.tags?.join(', ') || 'none'}`,
       );
+
+      // Resolve slugs to ObjectIds
+      if (parsedData.tags && parsedData.tags.length > 0) {
+        // Create a map for quick lookup
+        const slugToIdMap = new Map(validTags.map((t) => [t.slug, t._id.toString()]));
+        
+        // Map slugs to IDs, filtering out invalid ones
+        parsedData.tags = parsedData.tags
+          .map((slug) => slugToIdMap.get(slug))
+          .filter((id) => !!id) as string[];
+      }
+
+      console.log(`Resolved Tag IDs: ${parsedData.tags?.join(', ')}`);
 
       return parsedData;
     } catch (error) {

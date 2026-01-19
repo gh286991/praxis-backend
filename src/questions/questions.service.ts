@@ -26,7 +26,7 @@ export class QuestionsService {
   }
 
   async findOne(id: string): Promise<Question> {
-    const question = await this.questionModel.findById(id).exec();
+    const question = await this.questionModel.findById(id).populate('tags').exec();
     if (!question) {
       throw new NotFoundException(`Question with ID ${id} not found`);
     }
@@ -94,6 +94,8 @@ export class QuestionsService {
         _id: { $nin: attemptedQuestionIds },
       })
       .sort({ usedCount: 1 })
+      .sort({ usedCount: 1 })
+      .populate('tags')
       .exec();
 
     return availableQuestion;
@@ -139,6 +141,8 @@ export class QuestionsService {
         _id: { $nin: attemptedQuestionIds },
       })
       .sort({ usedCount: 1 }) // Prefer less-used questions
+      .sort({ usedCount: 1 }) // Prefer less-used questions
+      .populate('tags')
       .exec();
 
     if (availableQuestion) {

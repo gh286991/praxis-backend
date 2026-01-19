@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Subject } from './schemas/subject.schema';
 import { Category } from './schemas/category.schema';
 import { Question } from './schemas/question.schema';
+import { Tag, TagCategory } from './schemas/tag.schema';
 
 @Injectable()
 export class MigrationService {
@@ -11,6 +12,7 @@ export class MigrationService {
     @InjectModel(Subject.name) private subjectModel: Model<Subject>,
     @InjectModel(Category.name) private categoryModel: Model<Category>,
     @InjectModel(Question.name) private questionModel: Model<Question>,
+    @InjectModel(Tag.name) private tagModel: Model<Tag>,
   ) {}
 
   /**
@@ -157,5 +159,54 @@ export class MigrationService {
     }
 
     console.log('🎉 Subject placeholders created!');
+  }
+
+  /**
+   * 初始化標籤
+   */
+  async initializeTags() {
+    console.log('🚀 Starting Tags initialization...');
+
+    const tags = [
+      // Concepts
+      { name: '基本語法', slug: 'basic-syntax', type: TagCategory.CONCEPT },
+      { name: '條件判斷', slug: 'conditionals', type: TagCategory.CONCEPT },
+      { name: '迴圈', slug: 'loops', type: TagCategory.CONCEPT },
+      { name: '函式', slug: 'functions', type: TagCategory.CONCEPT },
+      { name: '輸入輸出', slug: 'io', type: TagCategory.CONCEPT },
+      
+      // Data Structures
+      { name: '字串處理', slug: 'string', type: TagCategory.DATA_STRUCTURE },
+      { name: '陣列/串列', slug: 'array-list', type: TagCategory.DATA_STRUCTURE },
+      { name: '字典', slug: 'dictionary', type: TagCategory.DATA_STRUCTURE },
+      { name: '集合', slug: 'set', type: TagCategory.DATA_STRUCTURE },
+      
+      // Algorithms
+      { name: '數學運算', slug: 'math', type: TagCategory.ALGORITHM },
+      { name: '排序', slug: 'sorting', type: TagCategory.ALGORITHM },
+      { name: '搜尋', slug: 'searching', type: TagCategory.ALGORITHM },
+      { name: '遞迴', slug: 'recursion', type: TagCategory.ALGORITHM },
+      
+      // Language Features - Python
+      { name: '列表推導式', slug: 'list-comprehension', type: TagCategory.LANGUAGE_FEATURE, language: 'python' },
+      
+      // Language Features - JavaScript
+      { name: '非同步處理', slug: 'async-await', type: TagCategory.LANGUAGE_FEATURE, language: 'javascript' },
+    ];
+
+    let createdCount = 0;
+    
+    for (const tagData of tags) {
+      const tag = await this.tagModel.findOneAndUpdate(
+        { slug: tagData.slug },
+        tagData,
+        { upsert: true, new: true }
+      );
+      console.log(`  ✅ Tag: ${tag.name} (${tag.type})`);
+      createdCount++;
+    }
+
+    console.log(`🎉 Tags initialization completed! Created/Updated ${createdCount} tags.`);
+    return { createdCount };
   }
 }
