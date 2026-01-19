@@ -53,6 +53,7 @@ export class GeminiService {
       const result = await this.model.generateContent(text);
       const response = result.response;
       const textResponse = response.text();
+      
       // Basic cleanup to ensure JSON parsing works if model wraps it in md code blocks
       const cleanedText = textResponse
         .replace(/```json/g, '')
@@ -60,10 +61,26 @@ export class GeminiService {
         .trim();
 
       await this.logTokens(result, 'generate_question', userId);
-      // Optional: Log prompt version
       console.log(`Generated Question using Prompt v${version}`);
 
-      return JSON.parse(cleanedText) as QuestionData;
+      const parsedData = JSON.parse(cleanedText) as QuestionData;
+
+      // Ensure backward compatibility: set sampleInput/sampleOutput from samples[0]
+      if (parsedData.samples && parsedData.samples.length > 0) {
+        parsedData.sampleInput = parsedData.samples[0].input;
+        parsedData.sampleOutput = parsedData.samples[0].output;
+      }
+
+      // Log generation summary
+      console.log(
+        `Generated: ${parsedData.title} | ` +
+        `Difficulty: ${parsedData.difficulty} | ` +
+        `Samples: ${parsedData.samples?.length || 0} | ` +
+        `Tests: ${parsedData.testCases?.length || 0} | ` +
+        `Tags: ${parsedData.tags?.join(', ') || 'none'}`,
+      );
+
+      return parsedData;
     } catch (error) {
       console.error('Error generating question:', error);
       throw error;

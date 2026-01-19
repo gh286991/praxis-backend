@@ -93,8 +93,22 @@ export class ExecutionController {
     const [testResult, semanticResult] = await Promise.all([
       // Execute Hidden Test Cases
       this.executionService.evaluateSubmission(body.code, question.testCases || []),
-      // AI Semantic Analysis
-      this.geminiService.checkSemantics(question, body.code, userId),
+      // Pre-execution semantic check (async)
+      this.geminiService.checkSemantics(
+        {
+          title: question.title,
+          description: question.description,
+          sampleInput: question.sampleInput,
+          sampleOutput: question.sampleOutput,
+          samples: question.samples || [],
+          testCases: question.testCases,
+          tags: question.tags || [],
+          difficulty: (question.difficulty as 'easy' | 'medium' | 'hard') || 'easy',
+          constraints: question.constraints,
+        },
+        body.code,
+        userId,
+      ),
     ]);
 
     // 3. Determine Success

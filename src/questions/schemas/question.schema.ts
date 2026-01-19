@@ -1,9 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
+interface Sample {
+  input: string;
+  output: string;
+  explanation?: string;
+}
+
 interface TestCase {
   input: string;
   output: string;
+  type?: 'normal' | 'edge' | 'corner';
+  description?: string;
 }
 
 @Schema({ timestamps: true })
@@ -24,16 +32,37 @@ export class Question extends Document {
   description: string;
 
   @Prop({ default: '' })
-  sampleInput: string;
+  sampleInput: string; // 保留向後相容：第一組範例的 input
 
   @Prop({ default: '' })
-  sampleOutput: string;
+  sampleOutput: string; // 保留向後相容：第一組範例的 output
 
   @Prop({ type: Array, default: [] })
-  testCases: TestCase[];
+  samples: Sample[]; // 新增：4-5 組範例
+
+  @Prop({ type: Array, default: [] })
+  testCases: TestCase[]; // 改進：10-20 個測試案例
+
+  @Prop({ type: [String], default: [] })
+  tags: string[]; // 新增：題目標籤
+
+  @Prop({ type: String, enum: ['easy', 'medium', 'hard'], required: false })
+  difficulty?: string; // 新增：難度
+
+  @Prop({ required: false })
+  constraints?: string; // 新增：特殊約束說明
 
   @Prop({ default: 0 })
   usedCount: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  generatedBy?: Types.ObjectId; // 產生此題目的使用者
+
+  @Prop({ required: false })
+  generatedAt?: Date; // 題目產生時間
+
+  @Prop({ default: false })
+  isAIGenerated: boolean; // 是否為 AI 產生（true）或從資料庫取得（false）
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);

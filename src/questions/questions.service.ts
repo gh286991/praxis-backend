@@ -151,6 +151,64 @@ export class QuestionsService {
   }
 
   /**
+   * Record that a user has started working on a question (when generated)
+   * This creates an initial UserProgress record so the question appears in history immediately
+   */
+  async recordQuestionGeneration(
+    userId: string,
+    questionId: string,
+    category: string,
+    subjectId?: string,
+    categoryId?: string,
+  ): Promise<UserProgress> {
+    console.log(
+      `Recording question generation for user ${userId}, question ${questionId}`,
+    );
+
+    // Check if record already exists (user might have seen this question before)
+    const existingProgress = await this.userProgressModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        questionId: new Types.ObjectId(questionId),
+      })
+      .exec();
+
+    if (existingProgress) {
+      // Already exists, just update the attemptedAt time to show it's active
+      existingProgress.attemptedAt = new Date();
+      await existingProgress.save();
+      console.log(`Question already in history, updated timestamp`);
+      return existingProgress;
+    }
+
+    // Create initial record
+    const initialProgress = new this.userProgressModel({
+      userId: new Types.ObjectId(userId),
+      questionId: new Types.ObjectId(questionId),
+      category,
+      code: '', // Empty initially
+      isCorrect: false, // Not attempted yet
+      attemptCount: 0, // Not submitted yet
+      passedCount: 0,
+      failedCount: 0,
+      attemptedAt: new Date(),
+      firstAttemptedAt: new Date(),
+    });
+
+    // Add new architecture fields if provided
+    if (subjectId && categoryId) {
+      initialProgress.subjectId = new Types.ObjectId(subjectId);
+      initialProgress.categoryId = new Types.ObjectId(categoryId);
+    }
+
+    const savedProgress = await initialProgress.save();
+
+    console.log(`Initial progress created: ${savedProgress._id}`);
+
+    return savedProgress;
+  }
+
+  /**
    * Record user's attempt at a question (upsert mode - one record per question)
    */
   async recordAttempt(

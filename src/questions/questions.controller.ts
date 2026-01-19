@@ -16,6 +16,7 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GeminiService } from '../gemini/gemini.service';
+import { QuestionData } from '../gemini/types';
 
 @Controller('questions')
 export class QuestionsController {
@@ -96,13 +97,32 @@ export class QuestionsController {
       };
 
       const topic = topicMap[category] || 'Basic Programming Design';
-      const questionData = await this.geminiService.generateQuestion(topic, userId);
+      const questionData = await this.geminiService.generateQuestion(
+        topic,
+        userId,
+      );
 
-      // Save to DB
+      // Save to DB with generation metadata
       question = await this.questionsService.create({
         category,
         ...questionData,
+        generatedBy: userId,
+        generatedAt: new Date(),
+        isAIGenerated: true,
       });
+
+      console.log(
+        `AI generated question saved: ${String(question._id)} by user ${userId} at ${new Date().toISOString()}`,
+      );
+
+      // Record generation in UserProgress immediately so it appears in Session History
+      await this.questionsService.recordQuestionGeneration(
+        userId,
+        question._id.toString(),
+        category,
+        question.subjectId?.toString(),
+        question.categoryId?.toString(),
+      );
     }
 
     return question;
@@ -155,12 +175,16 @@ export class QuestionsController {
     // Convert Mongoose document to plain object for interface matching if needed
     // or pass directly if type compatible.
     // GeminiService expects QuestionData interface.
-    const questionData = {
+    const questionData: QuestionData = {
       title: question.title,
       description: question.description,
       sampleInput: question.sampleInput,
       sampleOutput: question.sampleOutput,
+      samples: question.samples || [],
       testCases: question.testCases,
+      tags: question.tags || [],
+      difficulty: (question.difficulty as 'easy' | 'medium' | 'hard') || 'easy',
+      constraints: question.constraints,
     };
 
     const hint = await this.geminiService.generateHint(questionData, code);

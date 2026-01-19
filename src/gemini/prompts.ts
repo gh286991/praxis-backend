@@ -2,7 +2,7 @@ import { QuestionData } from './types';
 
 // Prompt Versions
 export const PROMPT_VERSIONS = {
-  GENERATE_QUESTION: '1.0.0',
+  GENERATE_QUESTION: '2.0.0', // 升級版本
   GENERATE_HINT: '1.0.0',
   CHECK_SEMANTICS: '1.0.0',
 };
@@ -12,6 +12,91 @@ export const GENERATE_QUESTION_PROMPT = (topic: string) => ({
   text: `
 You are a Python exam question generator for TQC (Techficiency Quota Certification) - Python General Purpose Programming.
 Generate a Python coding exercise focusing on TQC Category: "${topic}".
+
+IMPORTANT: Output MUST be a valid JSON object with the following structure:
+
+{
+  "title": "Question Title (繁體中文)",
+  "description": "詳細題目描述（繁體中文）。必須包含：
+    - 問題背景
+    - 輸入格式說明
+    - 輸出格式說明（如：保留小數點後幾位）
+    - 任何特殊約束",
+  
+  "samples": [
+    {
+      "input": "範例輸入1",
+      "output": "預期輸出1",
+      "explanation": "簡短說明（可選）"
+    },
+    {
+      "input": "範例輸入2",
+      "output": "預期輸出2"
+    }
+    // ... 總共 4-5 組範例，涵蓋不同情況
+  ],
+  
+  "testCases": [
+    {
+      "input": "測試輸入1",
+      "output": "預期輸出1",
+      "type": "normal",
+      "description": "一般測試"
+    },
+    {
+      "input": "0",
+      "output": "...",
+      "type": "edge",
+      "description": "邊界：最小值"
+    },
+    {
+      "input": "999999",
+      "output": "...",
+      "type": "edge",
+      "description": "邊界：大數值"
+    }
+    // ... 總共 10-20 個測試案例
+  ],
+  
+  "tags": ["主題1", "主題2", "技巧1"],  // 3-5 個繁體中文標籤
+  "difficulty": "easy",  // or "medium" or "hard"
+  "constraints": "特殊約束說明（如果有，否則為 null）"
+}
+
+CRITICAL REQUIREMENTS:
+
+1. **範例 (samples)** - 必須產生 4-5 組:
+   - 每組範例展示不同的測試情況
+   - 涵蓋典型案例、邊界案例、特殊案例
+   - 確保輸出與輸入完全對應
+   - explanation 可選，但建議簡短說明
+
+2. **測試案例 (testCases)** - 必須產生 10-20 個:
+   - 分類如下：
+     * "normal": 一般正常情況（60%）
+     * "edge": 邊界條件（30%）- 最小值、最大值、空輸入、單一元素
+     * "corner": 特殊情況（10%）- 特殊字元、重複值、負數等
+   - 每個測試都要有 description 說明測試目的
+
+3. **標籤 (tags)** - 必須產生 3-5 個（繁體中文）:
+   - 主題類：如「字串處理」、「數學運算」、「迴圈」、「條件判斷」
+   - 技巧類：如「排序」、「搜尋」、「格式化」、「累加」
+   - 資料結構：如「串列」、「字典」、「集合」
+
+4. **難度 (difficulty)**:
+   - "easy": 基本語法，單一概念，直觀邏輯
+   - "medium": 多個概念結合，需要思考步驟
+   - "hard": 複雜邏輯，需要演算法或優化
+
+5. **向後相容** - 自動設定:
+   - sampleInput 設為 samples[0].input
+   - sampleOutput 設為 samples[0].output
+
+6. **輸出格式要求**:
+   - 輸出必須完全符合預期格式
+   - 如需保留小數，明確說明位數
+   - 避免要求額外的提示文字（如「請輸入：」）
+   - 優先設計「讀取輸入 → 計算 → 輸出結果」的題目
 
 TQC Python Categories reference:
 1. Basic Programming Design (Variables, Expressions, Input/Output)
@@ -24,28 +109,14 @@ TQC Python Categories reference:
 8. Standard Libraries and Modules
 9. Object-Oriented Programming (Classes, Objects)
 
-The output MUST be a valid JSON object with the following structure:
-{
-  "title": "Question Title",
-  "description": "Problem description. Include specific input/output format requirements (e.g. 'Print the result to 2 decimal places').",
-  "sampleInput": "Input example for user",
-  "sampleOutput": "Expected output example matching sampleInput. Ensure this is EXACTLY what the code should print.",
-  "testCases": [
-      { "input": "input1", "output": "output1" },
-      { "input": "input2", "output": "output2" }
-  ]
-}
-
-IMPORTANT RULES:
-1. expectedOutput should countain EXACTLY what is printed to stdout.
-2. If the user needs to print a prompt like 'Enter number:', include that in the output OR specify in description that prompts are not required. 
-3. PREFER questions where the user just reads input and prints output without extra prompt text (like "Input a number: "), to make validation easier.
-4. Ensure the description is in Traditional Chinese (繁體中文).
-5. Do not include markdown formatting (like \`\`\`json). Just return the raw JSON string.
-`
+DO NOT include markdown code blocks. Return pure JSON only.
+`,
 });
 
-export const GENERATE_HINT_PROMPT = (question: QuestionData, userCode: string) => ({
+export const GENERATE_HINT_PROMPT = (
+  question: QuestionData,
+  userCode: string,
+) => ({
   version: PROMPT_VERSIONS.GENERATE_HINT,
   text: `
 You are a helpful Python tutor assisting a student with a coding problem.
@@ -76,7 +147,10 @@ CRITICAL RULES:
 `
 });
 
-export const CHECK_SEMANTICS_PROMPT = (question: QuestionData, userCode: string) => ({
+export const CHECK_SEMANTICS_PROMPT = (
+  question: QuestionData,
+  userCode: string,
+) => ({
   version: PROMPT_VERSIONS.CHECK_SEMANTICS,
   text: `
 You are a strict Python code reviewer.

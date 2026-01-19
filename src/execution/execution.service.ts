@@ -132,7 +132,7 @@ export class ExecutionService implements OnModuleInit {
                   const testCase = testCases[i];
                   subject.next({ 
                       status: 'processing', 
-                      message: `Running Test Case ${i + 1}/${total}...` 
+                      message: `Test Case ${i + 1}/${total}: Running...` 
                   });
 
                   // Execute WITHOUT queueing (we are already in the queue)
@@ -154,15 +154,29 @@ export class ExecutionService implements OnModuleInit {
                   }
 
                   if (!passed) allPassed = false;
-                  results.push({
+                  
+                  const testResult = {
                       input: testCase.input,
                       expected: expectedOutput,
                       actual: actualOutput,
                       error: error || null,
                       passed,
+                  };
+                  
+                  results.push(testResult);
+                  
+                  // 🔥 IMMEDIATELY send this test case result
+                  subject.next({
+                      status: 'test_case_completed',
+                      data: {
+                          testIndex: i,
+                          testCase: testResult,
+                          totalTests: total,
+                      }
                   });
               }
 
+              // Send final summary
               subject.next({
                   status: 'completed',
                   data: {

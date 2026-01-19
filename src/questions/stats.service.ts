@@ -20,8 +20,8 @@ export interface ProgressStats {
   completionRate: number;
   passRate: number;
   // Aliases for frontend compatibility
-  totalAttempts?: number;  // Same as completedQuestions
-  passedCount?: number;     // Same as passedQuestions
+  totalAttempts?: number; // Same as completedQuestions
+  passedCount?: number; // Same as passedQuestions
 }
 
 export interface SubjectStats extends ProgressStats {
@@ -30,7 +30,7 @@ export interface SubjectStats extends ProgressStats {
   subjectSlug: string;
   categories: CategoryStats[];
   // Additional alias for frontend
-  subjectTitle?: string;    // Same as subjectName
+  subjectTitle?: string; // Same as subjectName
 }
 
 export interface CategoryStats extends ProgressStats {
@@ -192,7 +192,7 @@ export class StatsService {
   async getPlatformStats(): Promise<PlatformStats> {
     const totalQuestions = await this.questionModel.countDocuments();
     const totalExecutions = await this.userProgressModel.countDocuments();
-    
+
     const activeLearnersList = await this.userProgressModel.distinct('userId');
     const activeLearners = activeLearnersList.length;
 
