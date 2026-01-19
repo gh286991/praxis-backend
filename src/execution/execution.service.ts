@@ -1,173 +1,226 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { Observable, Subject } from 'rxjs'; // Stream support
+import axios from 'axios';
 
 @Injectable()
-export class ExecutionService {
+export class ExecutionService implements OnModuleInit {
+  private queue: any;
+
+  async onModuleInit() {
+    try {
+      const { default: PQueue } = await import('p-queue');
+      // Limit concurrency to 1 to avoid burst issues with Piston, keep rate at 5/sec
+      this.queue = new PQueue({ interval: 1000, intervalCap: 5, concurrency: 1 });
+      console.log('[ExecutionService] Rate limiting queue initialized (1 concurrent, 5 req/sec)');
+    } catch (e) {
+      console.error('[ExecutionService] Failed to load p-queue', e);
+      this.queue = { add: (fn: any) => fn() };
+    }
+  }
+
+  // Private helper to execute on Piston (No Queueing)
+  private async executePiston(code: string, input: string = ''): Promise<{ output: string; error?: string }> {
+     const pistonEnvVar = process.env.PISTON_URL;
+     let pistonEndpoint = 'https://emkc.org/api/v2/piston/execute';
+
+     if (pistonEnvVar) {
+       if (pistonEnvVar.endsWith('/execute')) {
+         pistonEndpoint = pistonEnvVar;
+       } else {
+         pistonEndpoint = `${pistonEnvVar.replace(/\/$/, '')}/api/v2/execute`;
+       }
+     }
+
+     try {
+         const response = await axios.post(pistonEndpoint, {
+             language: 'python',
+             version: '3.10.0',
+             files: [{ content: code }],
+             stdin: input,
+             run_timeout: 5000,
+             compile_timeout: 10000,
+         });
+
+         const { run } = response.data;
+         
+         if (run.signal === 'SIGKILL' || run.signal === 'SIGTERM') {
+             return { output: run.output, error: 'Error: Execution Timed Out or Terminated' };
+         }
+
+         if (run.code !== 0) {
+             return { output: run.output, error: run.stderr || `Error: Process exited with code ${run.code}` };
+         }
+
+         return { output: run.output };
+     } catch (err: any) {
+          if (err.response && err.response.status === 429) {
+              return { output: '', error: 'Error: Too many requests, please try again later.' };
+          }
+          throw err;
+     }
+  }
+
   async executePython(
     code: string,
     input: string = '',
   ): Promise<{ output: string; error?: string }> {
-    // Piston API Integration
-    const pistonEnvVar = process.env.PISTON_URL;
-    // Default to Public API if not configured
-    let pistonEndpoint = 'https://emkc.org/api/v2/piston/execute';
-
-    if (pistonEnvVar) {
-      if (pistonEnvVar.endsWith('/execute')) {
-        pistonEndpoint = pistonEnvVar;
-      } else {
-        // Assume base URL provided, append standard v2 path
-        pistonEndpoint = `${pistonEnvVar.replace(/\/$/, '')}/api/v2/execute`;
-      }
-    }
-
-    console.log(`[ExecutionService] Using Piston Endpoint: ${pistonEndpoint}`);
-
-    // Legacy/Local Modes
-    const executionMode = process.env.EXECUTION_MODE;
-
-    if (
-      !pistonEnvVar &&
-      (executionMode === 'nsjail' || executionMode === 'direct')
-    ) {
-      // ... Keep existing logic for fallback if needed, or simplify to reduce complexity?
-      // Given user wants public security, we primarily push for Piston.
-      // But let's keep the 'direct' mode as a dev fallback if PISTON_URL is missing.
-      if (executionMode === 'direct') {
-        try {
-          const tmpDir = path.join(process.cwd(), 'temp');
-          await fs.mkdir(tmpDir, { recursive: true });
-          const fileName = `script_${Date.now()}_${Math.random().toString(36).substring(7)}.py`;
-          const filePath = path.join(tmpDir, fileName);
-
-          await fs.writeFile(filePath, code);
-          return new Promise((resolve) => {
-            const pythonProcess = spawn('python3', [filePath]);
-            let stdout = '',
-              stderr = '';
-            if (input) {
-              pythonProcess.stdin.write(input);
-              pythonProcess.stdin.end();
-            } else {
-              pythonProcess.stdin.end();
-            }
-            pythonProcess.stdout.on('data', (d) => (stdout += d.toString()));
-            pythonProcess.stderr.on('data', (d) => (stderr += d.toString()));
-            pythonProcess.on('close', async (code) => {
-              try {
-                await fs.unlink(filePath);
-              } catch {}
-              if (code !== 0)
-                resolve({
-                  output: stdout,
-                  error: stderr || `Exited with ${code}`,
-                });
-              else resolve({ output: stdout });
-            });
-            setTimeout(() => {
-              pythonProcess.kill();
-              resolve({ output: stdout, error: 'Timeout' });
-            }, 5000);
-          });
-        } catch (e) {
-          return { output: '', error: e.message };
-        }
-      }
-    }
-
-    // Default: Use Piston API
     try {
-      // Use dynamically imported axios
+        if (!this.queue) this.queue = { add: (fn: any) => fn() };
 
-      const axios = require('axios');
+        return await this.queue.add(async () => {
+            return await this.executePiston(code, input);
+        });
 
-      const response = await axios.post(pistonEndpoint, {
-        language: 'python',
-        version: '3.10.0', // Request default python version
-        files: [
-          {
-            content: code,
-          },
-        ],
-        stdin: input,
-        run_timeout: 5000,
-        compile_timeout: 10000,
-      });
-
-      const { run } = response.data;
-
-      if (run.signal === 'SIGKILL' || run.signal === 'SIGTERM') {
-        return {
-          output: run.output,
-          error: 'Error: Execution Timed Out or Terminated',
-        };
-      }
-
-      if (run.code !== 0) {
-        return {
-          output: run.output,
-          error: run.stderr || `Error: Process exited with code ${run.code}`,
-        };
-      }
-
-      return { output: run.output };
     } catch (err: any) {
-      console.error('Piston execution error:', err.message);
-      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-        return {
-          output: '',
-          error: 'Error: Execution service unavailable (Piston)',
-        };
-      }
+      console.error('Execution error:', err.message);
       return { output: '', error: `Execution Error: ${err.message}` };
     }
   }
 
-  // Remove unused Docker helpers if no longer needed
-  // private runDockerCommand...
+  async executePythonStream(code: string, input: string = ''): Promise<Observable<any>> {
+    const subject = new Subject<any>();
+
+    subject.next({ status: 'queued', message: 'Request queued' });
+
+    this.queue.add(async () => {
+      try {
+        subject.next({ status: 'processing', message: 'Processing code...' });
+        
+        const result = await this.executePiston(code, input);
+
+        subject.next({ 
+            status: 'completed', 
+            data: { 
+                output: result.output, 
+                error: result.error, 
+                // Compatibility with previous stream format which expected 'code' field? 
+                // Logic above returns output/error nicely.
+            } 
+        });
+        subject.complete();
+
+      } catch (error: any) {
+        console.error('Stream Execution failed', error.message);
+        subject.next({ status: 'error', message: error.message || 'Unknown error' });
+        subject.complete();
+      }
+    }).catch((err: any) => {
+        subject.error(err);
+    });
+
+    return subject.asObservable();
+  }
+
+  async evaluateSubmissionStream(
+    code: string,
+    testCases: { input: string; output: string }[]
+  ): Promise<Observable<any>> {
+      const subject = new Subject<any>();
+      const total = testCases.length;
+
+      subject.next({ status: 'queued', message: 'Submission queued...' });
+
+      this.queue.add(async () => {
+          let allPassed = true;
+          const results: any[] = [];
+
+          try {
+              for (let i = 0; i < total; i++) {
+                  const testCase = testCases[i];
+                  subject.next({ 
+                      status: 'processing', 
+                      message: `Running Test Case ${i + 1}/${total}...` 
+                  });
+
+                  // Execute WITHOUT queueing (we are already in the queue)
+                  const { output, error } = await this.executePiston(code, testCase.input);
+                  
+                  const actualOutput = output.trim();
+                  const expectedOutput = testCase.output.trim();
+                  let passed = !error && actualOutput === expectedOutput;
+
+                  if (!passed && !error) {
+                      // Floating point tolerance attempt
+                      const numActual = parseFloat(actualOutput);
+                      const numExpected = parseFloat(expectedOutput);
+                      if (!isNaN(numActual) && !isNaN(numExpected)) {
+                          if (Math.abs(numActual - numExpected) <= 0.02) {
+                              passed = true;
+                          }
+                      }
+                  }
+
+                  if (!passed) allPassed = false;
+                  results.push({
+                      input: testCase.input,
+                      expected: expectedOutput,
+                      actual: actualOutput,
+                      error: error || null,
+                      passed,
+                  });
+              }
+
+              subject.next({
+                  status: 'completed',
+                  data: {
+                      passed: allPassed,
+                      results: results
+                  }
+              });
+              subject.complete();
+
+          } catch (err: any) {
+              subject.next({ status: 'error', message: err.message });
+              subject.complete();
+          }
+      }).catch((err: any) => subject.error(err));
+
+      return subject.asObservable();
+  }
 
   async evaluateSubmission(
     code: string,
     testCases: { input: string; output: string }[],
   ): Promise<{ passed: boolean; results: any[] }> {
-    const results: any[] = [];
-    let allPassed = true;
+      // Reuse logic? Or keep separate?
+      // For existing calls (if any), we need non-streaming return.
+      // But we can just duplicate logic or wrap stream?
+      // Since evaluateSubmission calls executePython (which queues),
+      // it is safe to call from controller. BUT submitting multiple items 
+      // means multiple queue entries.
+      // Better to Refactor evaluateSubmission to ALSO use executePiston inside ONE queue task?
+      // Yes.
+      
+    if (!this.queue) this.queue = { add: (fn: any) => fn() };
+    
+    return await this.queue.add(async () => {
+        const results: any[] = [];
+        let allPassed = true;
+        
+        for (const testCase of testCases) {
+            const { output, error } = await this.executePiston(code, testCase.input);
+             // ... same comparison logic ...
+             const actualOutput = output.trim();
+             const expectedOutput = testCase.output.trim();
+             let passed = !error && actualOutput === expectedOutput;
+             
+             if (!passed && !error) {
+                const numActual = parseFloat(actualOutput);
+                const numExpected = parseFloat(expectedOutput);
+                if (!isNaN(numActual) && !isNaN(numExpected)) {
+                  if (Math.abs(numActual - numExpected) <= 0.02) {
+                    passed = true;
+                  }
+                }
+             }
 
-    for (const testCase of testCases) {
-      const { output, error } = await this.executePython(code, testCase.input);
-      const actualOutput = output.trim();
-      const expectedOutput = testCase.output.trim();
-
-      // Compare logic: explicit match OR floating point tolerance
-      let passed = !error && actualOutput === expectedOutput;
-
-      if (!passed && !error) {
-        // Try loose comparison for numbers (handling rounding differences)
-        const numActual = parseFloat(actualOutput);
-        const numExpected = parseFloat(expectedOutput);
-
-        if (!isNaN(numActual) && !isNaN(numExpected)) {
-          if (Math.abs(numActual - numExpected) <= 0.02) {
-            passed = true;
-          }
+             if (!passed) allPassed = false;
+             results.push({ input: testCase.input, expected: expectedOutput, actual: actualOutput, error, passed });
         }
-      }
-
-      if (!passed) {
-        allPassed = false;
-      }
-
-      results.push({
-        input: testCase.input,
-        expected: expectedOutput,
-        actual: actualOutput,
-        error: error || null,
-        passed,
-      });
-    }
-
-    return { passed: allPassed, results };
+        return { passed: allPassed, results };
+    });
   }
 }
