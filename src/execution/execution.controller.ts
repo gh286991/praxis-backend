@@ -1,4 +1,4 @@
-import { Controller, Post, Body, NotFoundException, Request, UseGuards, Header, MessageEvent, Res } from '@nestjs/common';
+import { Controller, Post, Body, NotFoundException, Request, UseGuards, Header, MessageEvent, Res, Inject, forwardRef } from '@nestjs/common';
 import { ExecutionService } from './execution.service';
 import { QuestionsService } from '../questions/questions.service';
 import { GeminiService } from '../gemini/gemini.service';
@@ -11,7 +11,9 @@ import type { Response } from 'express';
 export class ExecutionController {
   constructor(
     private readonly executionService: ExecutionService,
+    @Inject(forwardRef(() => QuestionsService))
     private readonly questionsService: QuestionsService,
+    @Inject(forwardRef(() => GeminiService))
     private readonly geminiService: GeminiService,
   ) {}
 
@@ -54,7 +56,11 @@ export class ExecutionController {
         return;
       }
 
-      const observable = await this.executionService.evaluateSubmissionStream(body.code, question.testCases || []);
+      const observable = await this.executionService.evaluateSubmissionStream(
+        body.code, 
+        question.testCases || [],
+        question.fileAssets
+      );
       
       observable.subscribe({
         next: (event) => {

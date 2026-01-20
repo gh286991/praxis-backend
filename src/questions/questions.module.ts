@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { QuestionsService } from './questions.service';
 import { QuestionsController } from './questions.controller';
@@ -29,7 +29,7 @@ import { UsersModule } from '../users/users.module';
       { name: Category.name, schema: CategorySchema },
       { name: Tag.name, schema: TagSchema },
     ]),
-    GeminiModule,
+    forwardRef(() => GeminiModule),
     UsersModule,
   ],
   controllers: [

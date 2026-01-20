@@ -26,7 +26,11 @@ export class QuestionsService {
   }
 
   async findOne(id: string): Promise<Question> {
-    const question = await this.questionModel.findById(id).populate('tags').exec();
+    const question = await this.questionModel
+      .findById(id)
+      .select('+fileAssets') // Explicitly include fileAssets (it's select:false in schema)
+      .populate('tags')
+      .exec();
     if (!question) {
       throw new NotFoundException(`Question with ID ${id} not found`);
     }

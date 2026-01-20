@@ -9,7 +9,12 @@ import {
   Request,
   UseGuards,
   Query,
+  Inject,
+  forwardRef,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { QuestionsService } from './questions.service';
 import { MigrationService } from './migration.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -22,6 +27,7 @@ import { QuestionData } from '../gemini/types';
 export class QuestionsController {
   constructor(
     private readonly questionsService: QuestionsService,
+    @Inject(forwardRef(() => GeminiService))
     private readonly geminiService: GeminiService,
     private readonly migrationService: MigrationService,
   ) {}
@@ -49,6 +55,116 @@ export class QuestionsController {
     return this.questionsService.findAll();
   }
 
+  // SSE route must come BEFORE :id route to avoid path conflicts
+  @UseGuards(JwtAuthGuard)
+  @Sse('stream')
+  streamNextQuestion(
+    @Query('category') category: string,
+    @Query('force') forceStr: string,
+    @Request() req: any,
+  ): Observable<MessageEvent> {
+    return new Observable((subscriber) => {
+      const process = async () => {
+        try {
+          // Debug logging
+          console.log('[SSE] Request headers:', req.headers?.authorization ? 'Token present' : 'No token');
+          console.log('[SSE] Category:', category);
+          console.log('[SSE] Force:', forceStr);
+          console.log('[SSE] User:', req.user);
+          
+          const userId = req.user?.sub;  // JWT Strategy returns user.sub as userId
+          console.log('[SSE] UserID:', userId);
+          const force = forceStr === 'true';
+
+          subscriber.next({ 
+            data: { status: 'progress', message: '檢查學習歷史紀錄...' } 
+          } as MessageEvent);
+
+          // 1. Try to find existing question
+          const question = force ? null : await this.questionsService.getNextQuestion(
+            userId, 
+            category, 
+            false
+          );
+
+          if (question) {
+            subscriber.next({ 
+                data: { status: 'success', message: '找到現有題目', data: question } 
+            } as MessageEvent);
+            subscriber.complete();
+            return;
+          }
+
+          // 2. Generate new question
+          subscriber.next({ 
+            data: { status: 'progress', message: '正在生成專屬 AI 題目...' } 
+          } as MessageEvent);
+          
+          const stream = this.geminiService.generateQuestionStream(
+            `Python ${category}`, 
+            userId
+          );
+          
+          for await (const update of stream) {
+            if (update.status === 'success' && update.data) {
+                subscriber.next({ 
+                    data: { status: 'progress', message: '驗證通過，正在儲存題目...' } 
+                } as MessageEvent);
+                
+                // Save to DB
+                // Save to DB
+                const questionToSave = {
+                  ...update.data,
+                  category,
+                  subjectId: null,
+                  categoryId: null,
+                  generatedBy: userId,
+                  generatedAt: new Date(),
+                  isAIGenerated: true,
+                };
+
+                if (update.data.testCases && update.data.testCases.length > 0) {
+                   console.log(`[SSE] Saving generated question with ${update.data.testCases.length} test cases.`);
+                } else {
+                   console.warn(`[SSE] WARNING: Saving generated question with NO test cases!`);
+                }
+
+                const savedQuestion = await this.questionsService.create(questionToSave as any);
+
+                await this.questionsService.recordQuestionGeneration(
+                    userId, 
+                    savedQuestion._id.toString(), 
+                    category
+                );
+                
+                // Get fully populated question
+                const finalQuestion = await this.questionsService.findOne(
+                    savedQuestion._id.toString()
+                );
+                
+                subscriber.next({ 
+                    data: { status: 'success', message: '題目已就緒', data: finalQuestion } 
+                } as MessageEvent);
+            } else {
+                // Forward progress events
+                subscriber.next({ data: update } as MessageEvent);
+            }
+          }
+          subscriber.complete();
+          
+        } catch (err: any) {
+          console.error('[SSE] Stream Error:', err);
+          subscriber.next({ 
+            data: { status: 'error', message: err.message || 'Unknown error' } 
+          } as MessageEvent);
+          subscriber.complete();
+        }
+      };
+      
+      process();
+    });
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.questionsService.findOne(id);
@@ -67,11 +183,9 @@ export class QuestionsController {
     return this.questionsService.remove(id);
   }
 
-  /**
-   * Get next question for authenticated user in specific category
-   * Returns from DB if available, otherwise generates new one
-   */
-  @UseGuards(JwtAuthGuard)
+
+
+
   @Get('next/:category')
   async getNext(
     @Param('category') category: string,
@@ -115,7 +229,7 @@ export class QuestionsController {
         generatedBy: userId,
         generatedAt: new Date(),
         isAIGenerated: true,
-      });
+      } as any);
       
       // Populate tags before returning to ensuring frontend gets full objects
       await question.populate('tags');

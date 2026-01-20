@@ -1,6 +1,8 @@
 export class CreateTestCaseDto {
   input: string;
   output: string;
+  type?: string;
+  description?: string;
 }
 
 export class CreateQuestionDto {

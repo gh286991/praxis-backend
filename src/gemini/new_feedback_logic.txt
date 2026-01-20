@@ -1,0 +1,32 @@
+            // **重要：提供詳細的失敗資訊，讓 AI 自我修正**
+            // AI 可以選擇修正：1) 參考程式碼 或 2) 測試用例的預期輸出
+            const failedTests = verifyResult.results
+              .filter((r: any) => !r.passed)
+              .map(
+                (r: any, idx: number) =>
+                  `測試 ${idx + 1}:\n  輸入: ${r.input}\n  預期輸出: ${r.expected}\n  實際輸出: ${r.actual}\n  錯誤: ${r.error || '無'}`,
+              )
+              .slice(0, 5)
+              .join('\n\n');
+
+            promptData.text += `\n\n===== 驗證失敗，需要修正 =====
+上一次生成的題目驗證失敗。請仔細分析失敗原因並修正。
+
+失敗的測試用例：
+${failedTests}
+
+**重要提示：**
+1. 仔細檢查測試用例的「預期輸出」是否計算正確
+2. 如果預期輸出算錯了，請修正測試用例的 output 欄位
+3. 如果預期輸出是對的，則修正參考程式碼
+4. 確保所有測試用例的預期輸出都是手動驗證過的正確值
+5. 注意數學計算的精度和四捨五入規則
+
+請輸出修正後的完整 JSON（包含所有欄位），確保測試用例和參考程式碼完全一致。`;
+
+            yield {
+              status: 'progress',
+              message: `驗證失敗，AI 自我修正中（第 ${attempts + 1}/${MAX_RETRIES} 次）...`,
+            };
+            attempts++;
+            continue; // Retry loop with corrected question

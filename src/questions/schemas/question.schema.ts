@@ -7,12 +7,22 @@ interface Sample {
   explanation?: string;
 }
 
-interface TestCase {
+@Schema({ _id: false })
+export class TestCase {
+  @Prop({ required: true })
   input: string;
+
+  @Prop({ required: true })
   output: string;
-  type?: 'normal' | 'edge' | 'corner';
+
+  @Prop({ required: false })
+  type?: string;
+
+  @Prop({ required: false })
   description?: string;
 }
+export const TestCaseSchema = SchemaFactory.createForClass(TestCase);
+
 
 @Schema({ timestamps: true })
 export class Question extends Document {
@@ -40,7 +50,7 @@ export class Question extends Document {
   @Prop({ type: Array, default: [] })
   samples: Sample[]; // 新增：4-5 組範例
 
-  @Prop({ type: Array, default: [] })
+  @Prop({ type: [TestCaseSchema], default: [] })
   testCases: TestCase[]; // 改進：10-20 個測試案例
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Tag' }], default: [] })
@@ -63,6 +73,12 @@ export class Question extends Document {
 
   @Prop({ default: false })
   isAIGenerated: boolean; // 是否為 AI 產生（true）或從資料庫取得（false）
+
+  @Prop({ required: false, select: false }) // Don't return to frontend by default
+  referenceCode?: string;
+
+  @Prop({ type: Object, required: false, select: false })
+  fileAssets?: Record<string, string>;
 }
 
 export const QuestionSchema = SchemaFactory.createForClass(Question);
