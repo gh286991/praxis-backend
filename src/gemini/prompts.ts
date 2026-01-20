@@ -198,7 +198,9 @@ Please provide a response in Traditional Chinese (繁體中文) strictly followi
 (Briefly explain the logical steps to solve this problem. Use bullet points. Keep it under 3 lines.)
 
 ### 🔑 關鍵語法
-(List key Python functions e.g., \`input()\`, \`int()\`, \`f-string\`. No explanations needed.)
+(List 3-5 key Python keywords/functions. MUST use a Markdown bulleted list. Put each item on its own line. Do NOT use inline commas.)
+- \`input()\`
+- \`print()\`
 
 ### 💡 提示
 (Specific, short advice based on their current code. Max 2 sentences.)

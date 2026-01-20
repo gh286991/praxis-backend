@@ -5,6 +5,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../users/users.module';
 import { Tag, TagSchema } from '../questions/schemas/tag.schema';
 import { ExecutionModule } from '../execution/execution.module';
+import { GeminiLogService } from './gemini-log.service';
+import { QuestionGenerationService } from './question-generation.service';
 
 @Module({
   imports: [
@@ -12,7 +14,7 @@ import { ExecutionModule } from '../execution/execution.module';
     MongooseModule.forFeature([{ name: Tag.name, schema: TagSchema }]),
     forwardRef(() => ExecutionModule),
   ],
-  providers: [GeminiService],
+  providers: [GeminiService, GeminiLogService, QuestionGenerationService],
   controllers: [GeminiController],
   exports: [GeminiService], // Export so QuestionsModule can use it
 })

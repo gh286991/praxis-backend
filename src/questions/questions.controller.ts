@@ -334,7 +334,8 @@ export class QuestionsController {
       constraints: question.constraints,
     };
 
-    const hint = await this.geminiService.generateHint(questionData, code);
+    const userId = req.user.sub;
+    const hint = await this.geminiService.generateHint(questionData, code, userId);
     return { hint };
   }
 
