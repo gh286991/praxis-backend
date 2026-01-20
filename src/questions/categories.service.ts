@@ -61,4 +61,12 @@ export class CategoriesService {
   async delete(id: string): Promise<Category | null> {
     return this.categoryModel.findByIdAndDelete(id).exec();
   }
+
+  /**
+   * Get category by slug only (without subjectId)
+   * Useful when we only have the slug from URL params
+   */
+  async findBySlugOnly(slug: string): Promise<Category | null> {
+    return this.categoryModel.findOne({ slug }).exec();
+  }
 }

@@ -15,6 +15,9 @@ export class Category extends Document {
   @Prop({ default: '' })
   description: string;
 
+  @Prop({ default: '' })
+  guidelines: string; // AI 出題準則 (Markdown format)
+
   @Prop({ default: 0 })
   order: number; // 排序順序
 }

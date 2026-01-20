@@ -40,15 +40,80 @@ export class MigrationService {
 
     // 2. 創建 9 個 Categories
     const categories = [
-      { slug: 'category1', name: '第1類：基本程式設計', order: 1 },
-      { slug: 'category2', name: '第2類：選擇敘述', order: 2 },
-      { slug: 'category3', name: '第3類：迴圈敘述', order: 3 },
-      { slug: 'category4', name: '第4類：進階控制流程', order: 4 },
-      { slug: 'category5', name: '第5類：函式(Function)', order: 5 },
-      { slug: 'category6', name: '第6類：串列(List)的運作', order: 6 },
-      { slug: 'category7', name: '第7類：數組、集合、字典', order: 7 },
-      { slug: 'category8', name: '第8類：字串(String)的運作', order: 8 },
-      { slug: 'category9', name: '第9類：檔案與異常處理', order: 9 },
+      {
+        slug: 'category1',
+        name: '第1類：基本程式設計',
+        order: 1,
+        description: 'Variables, Expressions, Input/Output',
+        guidelines: `**Focus**: Variables, Expressions, Basic I/O (print/input formatting).
+**Constraint**: Do NOT use advanced features like list comprehensions or lambda functions.`,
+      },
+      {
+        slug: 'category2',
+        name: '第2類：選擇敘述',
+        order: 2,
+        description: 'Selection Statements - if, else, elif',
+        guidelines: `**Focus**: if/elif/else logic, nested conditions.
+**Challenge**: Complex logical conditions (and, or, not).`,
+      },
+      {
+        slug: 'category3',
+        name: '第3類：迴圈敘述',
+        order: 3,
+        description: 'Repetition Structures - for, while loops',
+        guidelines: `**Focus**: while loops, for loops, nested loops.
+**Challenge**: Loop termination conditions, break/continue, calculating sums/series.`,
+      },
+      {
+        slug: 'category4',
+        name: '第4類：進階控制流程',
+        order: 4,
+        description: 'Advanced Control Flow',
+        guidelines: `**Focus**: Nested loops with complex logic, pass by value/reference concepts.`,
+      },
+      {
+        slug: 'category5',
+        name: '第5類：函式(Function)',
+        order: 5,
+        description: 'Functions - Definition, Parameters, Return values',
+        guidelines: `**Focus**: Defining functions, parameters (default, *args), return values.
+**Challenge**: Logic encapsulation, recursion (optional).`,
+      },
+      {
+        slug: 'category6',
+        name: '第6類：串列(List)的運作',
+        order: 6,
+        description: 'List Operations and Comprehension',
+        guidelines: `**Focus**: List methods (append, pop, sort), slicing, list comprehension (basic).
+**Challenge**: manipulating lists of numbers/strings.`,
+      },
+      {
+        slug: 'category7',
+        name: '第7類：數組、集合、字典',
+        order: 7,
+        description: 'Tuples, Sets, Dictionaries',
+        guidelines: `**Focus**: **Tuple operations** (packing/unpacking), **Set operations** (union, intersection, difference), **Dictionary usage** (key-value pairs, get(), items()).
+**Challenge**: Data transformation between these structures (e.g. list -> set -> sorted list).`,
+      },
+      {
+        slug: 'category8',
+        name: '第8類：字串(String)的運作',
+        order: 8,
+        description: 'String Operations',
+        guidelines: `**Focus**: String methods (split, join, replace, format), Regular expressions (import re).
+**Challenge**: Parsing formatted text, data extraction.`,
+      },
+      {
+        slug: 'category9',
+        name: '第9類：檔案與異常處理',
+        order: 9,
+        description: 'Error Handling and File I/O',
+        guidelines: `**Focus**: **File Operations** (open, read, write, append), **Exception Handling** (try, except, finally).
+**Challenge**:
+- Reading from a file and processing data (e.g., sum numbers in file).
+- Handling missing files (FileNotFoundError) or bad data (ValueError).
+- **MUST** involve reading from or writing to a file (use fileAssets).`,
+      },
     ];
 
     for (const cat of categories) {
@@ -59,6 +124,8 @@ export class MigrationService {
           name: cat.name,
           slug: cat.slug,
           order: cat.order,
+          description: cat.description,
+          guidelines: cat.guidelines,
         },
         { upsert: true, new: true },
       );

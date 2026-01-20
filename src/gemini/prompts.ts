@@ -2,7 +2,7 @@ import { QuestionData } from './types';
 
 // Prompt Versions
 export const PROMPT_VERSIONS = {
-  GENERATE_QUESTION: '2.0.0', // 升級版本
+  GENERATE_QUESTION: '2.1.0', // Updated with Category-Specific Guidelines
   GENERATE_HINT: '1.0.0',
   CHECK_SEMANTICS: '1.0.0',
   FIX_QUESTION: '1.0.0',
@@ -11,6 +11,7 @@ export const PROMPT_VERSIONS = {
 export const GENERATE_QUESTION_PROMPT = (
   topic: string,
   availableTags: string = '',
+  guidelines: string = '',
 ) => ({
   version: PROMPT_VERSIONS.GENERATE_QUESTION,
   text: `
@@ -45,14 +46,23 @@ IMPORTANT: Output MUST be a valid JSON object with the following structure:
   "difficulty": "easy",  // or "medium" or "hard"
   "constraints": "特殊約束說明（如果有，否則為 null）",
   "referenceCode": "import sys...", // A fully working Python solution code
-  "fileAssets": { // Optional: Virtual files for file I/O questions
-    "data.txt": "10,20,30\n40,50,60",
-    "config.json": "{\"key\": \"value\"}"
-  }
+  "fileAssets": [ // Optional: Virtual files for file I/O questions
+    { "filename": "data.txt", "content": "10,20,30\n40,50,60" },
+    { "filename": "config.json", "content": "{\"key\": \"value\"}" }
+  ]
 }
 
 Available Tags (Select 3-5 that match the question):
 ${availableTags}
+
+${
+  guidelines
+    ? `CRITICAL: CATEGORY-SPECIFIC DESIGN GUIDELINES (MUST FOLLOW):
+
+${guidelines}
+`
+    : ''
+}
 
 CRITICAL requirements for Tags:
 - You MUST ONLY use tags from the "Available Tags" list above.

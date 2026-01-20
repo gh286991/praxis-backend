@@ -1,7 +1,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerativeModel, SchemaType } from '@google/generative-ai';
 import { QuestionData, GenerationUpdate } from './types';
 import { UsageService } from '../users/usage.service';
 import { Tag } from '../questions/schemas/tag.schema';
@@ -75,23 +75,103 @@ export class GeminiService {
     topic: string,
     tagsList: string,
     userId?: string,
+    guidelines: string = '',
   ): Promise<QuestionData> {
-    const promptData = GENERATE_QUESTION_PROMPT(topic, tagsList);
+    const promptData = GENERATE_QUESTION_PROMPT(topic, tagsList, guidelines);
     const startTime = Date.now();
     let result: any;
     let error: Error | null = null;
+    
+    // Define JSON Schema for Structure Output
+    const questionJsonSchema = {
+      description: 'Python Question Structure',
+      type: SchemaType.OBJECT,
+      properties: {
+        title: {
+          type: SchemaType.STRING,
+          description: 'Question Title in Traditional Chinese',
+        },
+        description: {
+          type: SchemaType.STRING,
+          description: 'Detailed question description in Traditional Chinese',
+        },
+        samples: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              input: { type: SchemaType.STRING },
+              output: { type: SchemaType.STRING },
+              explanation: { type: SchemaType.STRING, nullable: true },
+            },
+            required: ['input', 'output'],
+          },
+        },
+        tags: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+        },
+        difficulty: {
+          type: SchemaType.STRING,
+          enum: ['easy', 'medium', 'hard'],
+        },
+        constraints: { type: SchemaType.STRING, nullable: true },
+        referenceCode: {
+          type: SchemaType.STRING,
+          description: 'Complete, working Python solution code',
+        },
+        fileAssets: {
+          type: SchemaType.ARRAY,
+          description:
+            'List of virtual files. Each item has filename and content.',
+          nullable: true,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              filename: { type: SchemaType.STRING },
+              content: { type: SchemaType.STRING },
+            },
+            required: ['filename', 'content'],
+          },
+        },
+      },
+      required: [
+        'title',
+        'description',
+        'samples',
+        'tags',
+        'difficulty',
+        'referenceCode',
+      ],
+    };
 
     try {
       result = await this.model.generateContent({
         contents: [{ role: 'user', parts: [{ text: promptData.text }] }],
-        generationConfig: { responseMimeType: 'application/json' },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: questionJsonSchema as any,
+        },
       });
       
       const response = result.response;
       const textResponse = response.text();
       // Basic cleanup for JSON parsing
       const cleanedText = textResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      const questionData = JSON.parse(cleanedText) as QuestionData;
+      const rawData = JSON.parse(cleanedText);
+
+      // Convert fileAssets from Array to Map (to maintain backward compatibility)
+      if (Array.isArray(rawData.fileAssets)) {
+        const assetsMap: Record<string, string> = {};
+        rawData.fileAssets.forEach((item: any) => {
+          if (item.filename && item.content) {
+            assetsMap[item.filename] = item.content;
+          }
+        });
+        rawData.fileAssets = assetsMap;
+      }
+
+      const questionData = rawData as QuestionData;
       
       await this.logTokens(result, 'generate-question-content', userId);
       return questionData;
@@ -131,8 +211,11 @@ export class GeminiService {
       const response = result.response;
       let script = response.text();
       
-      // Cleanup markdown code blocks if present
-      script = script.replace(/^```python\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+      // Cleanup markdown code blocks if present (robustly)
+      script = script
+        .replace(/^```[a-zA-Z]*\n?/g, '')
+        .replace(/```\n?$/g, '')
+        .trim();
       
       await this.logTokens(result, 'generate-input-script', userId);
       return script;
@@ -251,8 +334,9 @@ export class GeminiService {
   async generateQuestion(
     topic: string = 'Basic Python',
     userId?: string,
+    guidelines: string = '',
   ): Promise<QuestionData> {
-    const stream = this.generateQuestionStream(topic, userId);
+    const stream = this.generateQuestionStream(topic, userId, guidelines);
     let finalResult: QuestionData | undefined;
 
     for await (const update of stream) {
@@ -272,6 +356,7 @@ export class GeminiService {
   async *generateQuestionStream(
     topic: string = 'Basic Python',
     userId?: string,
+    guidelines: string = '',
   ): AsyncGenerator<GenerationUpdate> {
     // 0. Setup
     const validTags = await this.tagModel.find().lean();
@@ -289,7 +374,12 @@ export class GeminiService {
         // --- Stage 1: Generate Question Content & Solution ---
         yield { status: 'progress', message: `生成題目內容中（第 ${attempts}/${MAX_RETRIES} 次嘗試）...` };
         
-        const questionData = await this.generateQuestionContent(topic, tagsList, userId);
+        const questionData = await this.generateQuestionContent(
+          topic,
+          tagsList,
+          userId,
+          guidelines,
+        );
         
         // Basic validation
         if (!questionData.title || !questionData.referenceCode) {
