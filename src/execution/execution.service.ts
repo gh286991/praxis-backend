@@ -30,6 +30,7 @@ export class ExecutionService implements OnModuleInit {
     input: string = '',
     fileAssets?: Record<string, string>,
     retryCount: number = 0,
+    timeout: number = 5000, // Default 5 seconds for user code
   ): Promise<{ output: string; error?: string }> {
     const pistonEnvVar = process.env.PISTON_URL;
     let pistonEndpoint = 'https://emkc.org/api/v2/piston/execute';
@@ -55,7 +56,7 @@ export class ExecutionService implements OnModuleInit {
         version: '3.10.0',
         files: files,
         stdin: input,
-        run_timeout: 5000,
+        run_timeout: timeout,
         compile_timeout: 10000,
       });
 
@@ -105,7 +106,25 @@ export class ExecutionService implements OnModuleInit {
       if (!this.queue) this.queue = { add: (fn: any) => fn() };
 
       return await this.queue.add(async () => {
-        return await this.executePiston(code, input, fileAssets);
+        return await this.executePiston(code, input, fileAssets, 0, 5000);
+      });
+    } catch (err: any) {
+      console.error('Execution error:', err.message);
+      return { output: '', error: `Execution Error: ${err.message}` };
+    }
+  }
+
+  // For question generation - use longer timeout (8 seconds)
+  async executePythonForGeneration(
+    code: string,
+    input: string = '',
+    fileAssets?: Record<string, string>,
+  ): Promise<{ output: string; error?: string }> {
+    try {
+      if (!this.queue) this.queue = { add: (fn: any) => fn() };
+
+      return await this.queue.add(async () => {
+        return await this.executePiston(code, input, fileAssets, 0, 8000);
       });
     } catch (err: any) {
       console.error('Execution error:', err.message);

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { GenerativeModel, SchemaType } from '@google/generative-ai';
 import { QuestionData, GenerationUpdate } from './types';
 import { Tag } from '../questions/schemas/tag.schema';
+import { Question } from '../questions/schemas/question.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -19,6 +20,7 @@ export class QuestionGenerationService {
     private executionService: ExecutionService,
     private geminiLog: GeminiLogService,
     @InjectModel(Tag.name) private tagModel: Model<Tag>,
+    @InjectModel(Question.name) private questionModel: Model<Question>,
   ) {}
 
   async *generateQuestionStream(
@@ -32,6 +34,18 @@ export class QuestionGenerationService {
     const tagsList = validTags
       .map((t) => `- ${t.name} (slug: ${t.slug}) [${t.type}]`)
       .join('\n');
+
+    // Fetch recent 10 question titles from same category to avoid repetition
+    const recentQuestions = await this.questionModel
+      .find({ category: topic })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('title')
+      .lean();
+    const recentTitles = recentQuestions.map((q) => q.title).join('\n- ');
+    const diversityHint = recentTitles
+      ? `\n\nIMPORTANT - AVOID REPETITION:\nThe following questions have already been generated. Please create something DIFFERENT:\n- ${recentTitles}\n`
+      : '';
 
     let attempts = 0;
     const MAX_RETRIES = this.configService.get<number>('GEMINI_MAX_RETRIES', 2);
@@ -51,7 +65,7 @@ export class QuestionGenerationService {
           topic,
           tagsList,
           userId,
-          guidelines,
+          guidelines + diversityHint,
         );
 
         // Basic validation
@@ -72,7 +86,7 @@ export class QuestionGenerationService {
         yield { status: 'progress', message: '執行驗證並生成測試案例中...' };
 
         // 3.1 Execute Input Script to get inputs
-        const inputGenResult = await this.executionService.executePython(
+        const inputGenResult = await this.executionService.executePythonForGeneration(
           inputScript,
           '',
           {},
@@ -343,11 +357,15 @@ export class QuestionGenerationService {
     };
 
     try {
+      // Use higher temperature for more creative/diverse questions
+      const temperature = this.configService.get<number>('GEMINI_TEMPERATURE', 1.0);
+      
       result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: promptData.text }] }],
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: questionJsonSchema as any,
+          temperature: temperature,
         },
       });
 
