@@ -124,6 +124,7 @@ export class QuestionsController {
             topic,
             userId,
             categoryInfo?.guidelines || '',
+            category,
           );
 
           for await (const update of stream) {

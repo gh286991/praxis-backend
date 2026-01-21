@@ -70,12 +70,14 @@ export class GeminiService {
     topic: string = 'Basic Python',
     userId?: string,
     guidelines: string = '',
+    categorySlug?: string,
   ): AsyncGenerator<GenerationUpdate> {
     yield* this.questionGenService.generateQuestionStream(
       this.model,
       topic,
       userId,
       guidelines,
+      categorySlug,
     );
   }
 

@@ -28,6 +28,7 @@ export class QuestionGenerationService {
     topic: string = 'Basic Python',
     userId?: string,
     guidelines: string = '',
+    categorySlug?: string,
   ): AsyncGenerator<GenerationUpdate> {
     // 0. Setup
     const validTags = await this.tagModel.find().lean();
@@ -36,12 +37,14 @@ export class QuestionGenerationService {
       .join('\n');
 
     // Fetch recent 10 question titles from same category to avoid repetition
-    const recentQuestions = await this.questionModel
-      .find({ category: topic })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .select('title')
-      .lean();
+    const recentQuestions = categorySlug
+      ? await this.questionModel
+          .find({ category: categorySlug })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .select('title')
+          .lean()
+      : [];
     const recentTitles = recentQuestions.map((q) => q.title).join('\n- ');
     const diversityHint = recentTitles
       ? `\n\nIMPORTANT - AVOID REPETITION:\nThe following questions have already been generated. Please create something DIFFERENT:\n- ${recentTitles}\n`
