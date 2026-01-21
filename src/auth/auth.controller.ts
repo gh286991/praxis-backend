@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import { COOKIE_OPTIONS } from '../config/cookie.config';
 
 @Controller('auth')
 export class AuthController {
@@ -31,38 +32,24 @@ export class AuthController {
     const { access_token } = await this.authService.login(req.user);
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    
-    res.cookie('jwt_token', access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
-    });
-    
+
+    res.cookie('jwt_token', access_token, COOKIE_OPTIONS);
+
     res.redirect(`${frontendUrl}`);
   }
 
   @Post('dev/login')
   async devLogin(@Body() body: any, @Res({ passthrough: true }) res: Response) {
     const { access_token, user } = await this.authService.loginDev(body);
-    
-    res.cookie('jwt_token', access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
-    });
+
+    res.cookie('jwt_token', access_token, COOKIE_OPTIONS);
 
     return { success: true, user };
   }
 
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('jwt_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+    res.clearCookie('jwt_token', COOKIE_OPTIONS);
     return { success: true };
   }
 }
