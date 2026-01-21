@@ -111,9 +111,14 @@ CRITICAL REQUIREMENTS:
     - 避免要求額外的提示文字（如「請輸入：」）
     - 優先設計「讀取輸入 → 計算 → 輸出結果」的題目
 
-8. **參考解答 (referenceCode)**:
+  9. **健壯性與錯誤處理 (Robustness)**:
+     - **隱藏測試條件**：題目描述中**不需要**特別提及錯誤處理（讓學生自己思考應對）。
+     - **參考解答必須實作 (try-except)**：\`referenceCode\` 必須使用 \`try-except\` 區塊來捕捉 \`ValueError\` 等錯誤，並輸出簡短錯誤訊息（例如 "error"）。
+     - 這樣當測試腳本產生無效輸入時，系統能產生對應的輸出作為測試標準。
+
+  10. **參考解答 (referenceCode)**:
    - 必須提供一個完整的、正確的 Python 程式碼
-   - 此程式碼將用於後續生成自動化測試案例
+   - **必須實作錯誤處理**：針對上述的健壯性要求，使用 try-except 處理非預期輸入。
    - 必須能正確解決問題並通過所有範例 (Samples)
    - 使用標準輸入 (input()) 和標準輸出 (print())
    - 不需要過度複雜，但必須正確
@@ -135,10 +140,8 @@ DO NOT include markdown code blocks. Return pure JSON only.
 `,
 });
 
-export const GENERATE_INPUT_SCRIPT_PROMPT = (
-  question: QuestionData,
-) => ({
-  version: '1.0.0',
+export const GENERATE_INPUT_SCRIPT_PROMPT = (question: QuestionData) => ({
+  version: '1.1.0',
   text: `
 You are a QA Engineer responsible for generating test inputs for a Python programming problem.
 
@@ -152,6 +155,11 @@ The script MUST generate 10-20 diverse test cases, covering:
 1. Normal cases (Typical inputs)
 2. Edge cases (Min/Max values, Empty inputs)
 3. Corner cases (Special characters, specific combinations)
+4. **Invalid/Exceptional cases (Robustness Tests)**:
+   - **Type Mismatch**: If expecting Integer, generate strings like "abc", "xyz", "12.5" (float), or mixed "12a".
+   - **Empty/Whitespace**: Generate empty input "" or purely whitespace "   ".
+   - **Format Errors**: If expecting comma-separated, generate space-separated or missing delimiters.
+   - *Goal*: Verify if the user's code implements the required \`try-except\` block (e.g. prints "error" instead of crashing).
 
 Output Format Requirements:
 - The script should print a valid JSON array of strings to stdout.
