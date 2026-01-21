@@ -1,7 +1,9 @@
 import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { StatsService, SubjectStats } from './stats.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@SkipThrottle()
 @Controller('stats')
 export class StatsController {
   constructor(private readonly statsService: StatsService) {}

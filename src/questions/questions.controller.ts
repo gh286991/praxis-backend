@@ -25,6 +25,7 @@ import { GeminiService } from '../gemini/gemini.service';
 import { QuestionData } from '../gemini/types';
 
 @Controller('questions')
+@UseGuards(JwtAuthGuard)
 export class QuestionsController {
   constructor(
     private readonly questionsService: QuestionsService,
@@ -58,7 +59,7 @@ export class QuestionsController {
   }
 
   // SSE route must come BEFORE :id route to avoid path conflicts
-  @UseGuards(JwtAuthGuard)
+
   @Sse('stream')
   streamNextQuestion(
     @Query('category') category: string,
@@ -278,7 +279,7 @@ export class QuestionsController {
   /**
    * Submit answer and record user progress
    */
-  @UseGuards(JwtAuthGuard)
+
   @Post(':id/submit')
   async submit(
     @Param('id') questionId: string,
@@ -306,7 +307,7 @@ export class QuestionsController {
   /**
    * Get AI hint for current code
    */
-  @UseGuards(JwtAuthGuard)
+
   @Post('hint')
   async getHint(
     @Request() req: any,
@@ -342,7 +343,7 @@ export class QuestionsController {
   /**
    * Get user statistics for all categories
    */
-  @UseGuards(JwtAuthGuard)
+
   @Get('stats')
   async getAllStats(@Request() req: any) {
     const userId = req.user.sub;
@@ -352,7 +353,7 @@ export class QuestionsController {
   /**
    * Get user statistics for specific category
    */
-  @UseGuards(JwtAuthGuard)
+
   @Get('stats/:category')
   async getStats(@Param('category') category: string, @Request() req: any) {
     const userId = req.user.sub;
@@ -362,7 +363,7 @@ export class QuestionsController {
   /**
    * Get user's question history for specific category
    */
-  @UseGuards(JwtAuthGuard)
+
   @Get('history/:category')
   async getHistory(@Param('category') category: string, @Request() req: any) {
     const userId = req.user.sub;

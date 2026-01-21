@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/schemas/user.schema';
@@ -54,6 +54,6 @@ export class AuthService {
       }
       return this.login(user);
     }
-    throw new Error('Invalid credentials');
+    throw new UnauthorizedException('Invalid credentials');
   }
 }

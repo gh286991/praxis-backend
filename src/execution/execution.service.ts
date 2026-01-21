@@ -1,7 +1,4 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { spawn } from 'child_process';
 import { Observable, Subject } from 'rxjs'; // Stream support
 import axios from 'axios';
 
@@ -32,6 +29,7 @@ export class ExecutionService implements OnModuleInit {
     code: string,
     input: string = '',
     fileAssets?: Record<string, string>,
+    retryCount: number = 0,
   ): Promise<{ output: string; error?: string }> {
     const pistonEnvVar = process.env.PISTON_URL;
     let pistonEndpoint = 'https://emkc.org/api/v2/piston/execute';
@@ -80,6 +78,15 @@ export class ExecutionService implements OnModuleInit {
       return { output: run.output };
     } catch (err: any) {
       if (err.response && err.response.status === 429) {
+        if (retryCount < 3) {
+          const delay = 1000 * Math.pow(2, retryCount); // 1s, 2s, 4s
+          console.warn(
+            `[ExecutionService] 429 from Piston. Retrying in ${delay}ms (Attempt ${retryCount + 1}/3)...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.executePiston(code, input, fileAssets, retryCount + 1);
+        }
+
         return {
           output: '',
           error: 'Error: Too many requests, please try again later.',
@@ -174,11 +181,13 @@ export class ExecutionService implements OnModuleInit {
             // Parse test case input for file content (format: "filename: content")
             let currentInput = testCase.input;
             const currentFileAssets = { ...fileAssets };
-            
+
             if (fileAssets) {
               for (const fileName of Object.keys(fileAssets)) {
                 if (currentInput.startsWith(fileName + ':')) {
-                  const fileContent = currentInput.substring(fileName.length + 1).trim();
+                  const fileContent = currentInput
+                    .substring(fileName.length + 1)
+                    .trim();
                   currentFileAssets[fileName] = fileContent;
                   currentInput = ''; // Clear input since it's file content, not stdin
                 }
@@ -269,41 +278,53 @@ export class ExecutionService implements OnModuleInit {
       const results: any[] = [];
       let allPassed = true;
 
-        for (const testCase of testCases) {
-            let currentInput = testCase.input;
-            let currentFileAssets = { ...fileAssets };
+      for (const testCase of testCases) {
+        const currentInput = testCase.input;
+        const currentFileAssets = { ...fileAssets };
 
-            // Check if input implicity implies file content (AI often does this: "filename: content")
-            // Only checks if the filename is already in fileAssets to avoid false positives
-            if (fileAssets) {
-                for (const fileName of Object.keys(fileAssets)) {
-                    if (currentInput.startsWith(fileName + ':')) {
-                        const fileContent = currentInput.substring(fileName.length + 1).trim(); // +1 for colon
-                        // Allow empty string to override (e.g. empty file test case)
-                        currentFileAssets[fileName] = fileContent;
-                    }
-                }
+        // Check if input implicity implies file content (AI often does this: "filename: content")
+        // Only checks if the filename is already in fileAssets to avoid false positives
+        if (fileAssets) {
+          for (const fileName of Object.keys(fileAssets)) {
+            if (currentInput.startsWith(fileName + ':')) {
+              const fileContent = currentInput
+                .substring(fileName.length + 1)
+                .trim(); // +1 for colon
+              // Allow empty string to override (e.g. empty file test case)
+              currentFileAssets[fileName] = fileContent;
             }
-
-            const { output, error } = await this.executePiston(code, currentInput, currentFileAssets);
-             // ... same comparison logic ...
-             const actualOutput = output.trim();
-             const expectedOutput = testCase.output.trim();
-             let passed = !error && actualOutput === expectedOutput;
-
-             if (!passed && !error) {
-                const numActual = parseFloat(actualOutput);
-                const numExpected = parseFloat(expectedOutput);
-                if (!isNaN(numActual) && !isNaN(numExpected)) {
-                  if (Math.abs(numActual - numExpected) <= 0.02) {
-                    passed = true;
-                  }
-                }
-             }
-
-             if (!passed) allPassed = false;
-             results.push({ input: testCase.input, expected: expectedOutput, actual: actualOutput, error, passed });
+          }
         }
+
+        const { output, error } = await this.executePiston(
+          code,
+          currentInput,
+          currentFileAssets,
+        );
+        // ... same comparison logic ...
+        const actualOutput = output.trim();
+        const expectedOutput = testCase.output.trim();
+        let passed = !error && actualOutput === expectedOutput;
+
+        if (!passed && !error) {
+          const numActual = parseFloat(actualOutput);
+          const numExpected = parseFloat(expectedOutput);
+          if (!isNaN(numActual) && !isNaN(numExpected)) {
+            if (Math.abs(numActual - numExpected) <= 0.02) {
+              passed = true;
+            }
+          }
+        }
+
+        if (!passed) allPassed = false;
+        results.push({
+          input: testCase.input,
+          expected: expectedOutput,
+          actual: actualOutput,
+          error,
+          passed,
+        });
+      }
       return { passed: allPassed, results };
     });
   }

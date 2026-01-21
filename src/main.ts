@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -9,6 +10,7 @@ async function bootstrap() {
   const port = configService.get<number>('PORT') || 3001;
 
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
 
   // Configure CORS - only allow frontend domain
   app.enableCors({

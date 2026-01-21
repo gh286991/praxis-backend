@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { SubjectsService } from './subjects.service';
 import { Subject } from './schemas/subject.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -17,12 +18,14 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
+  @SkipThrottle()
   @Get()
   async findAll(@Query('includeInactive') includeInactive?: string) {
     const include = includeInactive === 'true';
     return this.subjectsService.findAll(include);
   }
 
+  @SkipThrottle()
   @Get(':slug')
   async findBySlug(@Param('slug') slug: string) {
     return this.subjectsService.findBySlug(slug);
