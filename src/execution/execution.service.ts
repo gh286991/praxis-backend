@@ -176,7 +176,7 @@ export class ExecutionService implements OnModuleInit {
 
   async evaluateSubmissionStream(
     code: string,
-    testCases: { input: string; output: string }[],
+    testCases: { input: string; output: string; fileAssets?: Record<string, string> }[],
     fileAssets?: Record<string, string>,
   ): Promise<Observable<any>> {
     const subject = new Subject<any>();
@@ -197,11 +197,19 @@ export class ExecutionService implements OnModuleInit {
               message: `Test Case ${i + 1}/${total}: Running...`,
             });
 
-            // Parse test case input for file content (format: "filename: content")
+            // Priority 1: Use testCase's own fileAssets if available
+            // Priority 2: Use question's global fileAssets as fallback
+            // Priority 3: Parse input string for file definition (legacy support)
             let currentInput = testCase.input;
-            const currentFileAssets = { ...fileAssets };
-
-            if (fileAssets) {
+            let currentFileAssets = { ...fileAssets };
+            
+            if (testCase.fileAssets && Object.keys(testCase.fileAssets).length > 0) {
+              // Test case has its own fileAssets, use them (merge with question's global ones)
+              currentFileAssets = { ...currentFileAssets, ...testCase.fileAssets };
+              // Clear stdin since file content is provided via fileAssets
+              currentInput = '';
+            } else if (fileAssets) {
+              // Legacy support: Check if input follows "filename: content" pattern
               for (const fileName of Object.keys(fileAssets)) {
                 if (currentInput.startsWith(fileName + ':')) {
                   const fileContent = currentInput
@@ -279,7 +287,7 @@ export class ExecutionService implements OnModuleInit {
 
   async evaluateSubmission(
     code: string,
-    testCases: { input: string; output: string }[],
+    testCases: { input: string; output: string; fileAssets?: Record<string, string> }[],
     fileAssets?: Record<string, string>,
   ): Promise<{ passed: boolean; results: any[] }> {
     // Reuse logic? Or keep separate?
@@ -298,18 +306,24 @@ export class ExecutionService implements OnModuleInit {
       let allPassed = true;
 
       for (const testCase of testCases) {
-        const currentInput = testCase.input;
-        const currentFileAssets = { ...fileAssets };
+        // Priority 1: Use testCase's own fileAssets if available
+        // Priority 2: Use question's global fileAssets as fallback
+        // Priority 3: Parse input string for file definition (legacy support)
+        let currentInput = testCase.input;
+        let currentFileAssets = { ...fileAssets };
 
-        // Check if input implicity implies file content (AI often does this: "filename: content")
-        // Only checks if the filename is already in fileAssets to avoid false positives
-        if (fileAssets) {
+        if (testCase.fileAssets && Object.keys(testCase.fileAssets).length > 0) {
+          // Test case has its own fileAssets, use them (merge with question's global ones)
+          currentFileAssets = { ...currentFileAssets, ...testCase.fileAssets };
+          // Clear stdin since file content is provided via fileAssets
+          currentInput = '';
+        } else if (fileAssets) {
+          // Legacy support: Check if input follows "filename: content" pattern
           for (const fileName of Object.keys(fileAssets)) {
             if (currentInput.startsWith(fileName + ':')) {
               const fileContent = currentInput
                 .substring(fileName.length + 1)
-                .trim(); // +1 for colon
-              // Allow empty string to override (e.g. empty file test case)
+                .trim();
               currentFileAssets[fileName] = fileContent;
             }
           }

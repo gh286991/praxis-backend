@@ -241,39 +241,55 @@ export class MigrationService {
       { name: '迴圈', slug: 'loops', type: TagCategory.CONCEPT },
       { name: '函式', slug: 'functions', type: TagCategory.CONCEPT },
       { name: '輸入輸出', slug: 'io', type: TagCategory.CONCEPT },
-      
+
       // Data Structures
       { name: '字串處理', slug: 'string', type: TagCategory.DATA_STRUCTURE },
-      { name: '陣列/串列', slug: 'array-list', type: TagCategory.DATA_STRUCTURE },
+      {
+        name: '陣列/串列',
+        slug: 'array-list',
+        type: TagCategory.DATA_STRUCTURE,
+      },
       { name: '字典', slug: 'dictionary', type: TagCategory.DATA_STRUCTURE },
       { name: '集合', slug: 'set', type: TagCategory.DATA_STRUCTURE },
-      
+
       // Algorithms
       { name: '數學運算', slug: 'math', type: TagCategory.ALGORITHM },
       { name: '排序', slug: 'sorting', type: TagCategory.ALGORITHM },
       { name: '搜尋', slug: 'searching', type: TagCategory.ALGORITHM },
       { name: '遞迴', slug: 'recursion', type: TagCategory.ALGORITHM },
-      
+
       // Language Features - Python
-      { name: '列表推導式', slug: 'list-comprehension', type: TagCategory.LANGUAGE_FEATURE, language: 'python' },
-      
+      {
+        name: '列表推導式',
+        slug: 'list-comprehension',
+        type: TagCategory.LANGUAGE_FEATURE,
+        language: 'python',
+      },
+
       // Language Features - JavaScript
-      { name: '非同步處理', slug: 'async-await', type: TagCategory.LANGUAGE_FEATURE, language: 'javascript' },
+      {
+        name: '非同步處理',
+        slug: 'async-await',
+        type: TagCategory.LANGUAGE_FEATURE,
+        language: 'javascript',
+      },
     ];
 
     let createdCount = 0;
-    
+
     for (const tagData of tags) {
       const tag = await this.tagModel.findOneAndUpdate(
         { slug: tagData.slug },
         tagData,
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
       console.log(`  ✅ Tag: ${tag.name} (${tag.type})`);
       createdCount++;
     }
 
-    console.log(`🎉 Tags initialization completed! Created/Updated ${createdCount} tags.`);
+    console.log(
+      `🎉 Tags initialization completed! Created/Updated ${createdCount} tags.`,
+    );
     return { createdCount };
   }
 }

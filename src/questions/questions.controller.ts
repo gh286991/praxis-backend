@@ -337,7 +337,11 @@ export class QuestionsController {
     };
 
     const userId = req.user.sub;
-    const hint = await this.geminiService.generateHint(questionData, code, userId);
+    const hint = await this.geminiService.generateHint(
+      questionData,
+      code,
+      userId,
+    );
     return { hint };
   }
 
@@ -369,5 +373,13 @@ export class QuestionsController {
   async getHistory(@Param('category') category: string, @Request() req: any) {
     const userId = req.user.sub;
     return this.questionsService.getHistory(userId, category);
+  }
+
+  /**
+   * Get list of questions for sidebar navigation
+   */
+  @Get('list/:category')
+  async getQuestionList(@Param('category') category: string) {
+    return this.questionsService.getList(category);
   }
 }

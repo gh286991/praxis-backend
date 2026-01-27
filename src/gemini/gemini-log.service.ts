@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsageService } from '../users/usage.service';
@@ -13,11 +12,7 @@ export class GeminiLogService {
     private usageService: UsageService,
   ) {}
 
-  async logTokens(
-    result: any,
-    endpoint: string,
-    userId: string = 'system',
-  ) {
+  async logTokens(result: any, endpoint: string, userId: string = 'system') {
     if (result.response.usageMetadata) {
       const { promptTokenCount, candidatesTokenCount } =
         result.response.usageMetadata;

@@ -89,11 +89,12 @@ export class QuestionGenerationService {
         yield { status: 'progress', message: '執行驗證並生成測試案例中...' };
 
         // 3.1 Execute Input Script to get inputs
-        const inputGenResult = await this.executionService.executePythonForGeneration(
-          inputScript,
-          '',
-          {},
-        );
+        const inputGenResult =
+          await this.executionService.executePythonForGeneration(
+            inputScript,
+            '',
+            {},
+          );
 
         if (inputGenResult.error) {
           console.error('Input Generation Script Error:', inputGenResult.error);
@@ -361,8 +362,11 @@ export class QuestionGenerationService {
 
     try {
       // Use higher temperature for more creative/diverse questions
-      const temperature = this.configService.get<number>('GEMINI_TEMPERATURE', 1.0);
-      
+      const temperature = this.configService.get<number>(
+        'GEMINI_TEMPERATURE',
+        1.0,
+      );
+
       result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: promptData.text }] }],
         generationConfig: {

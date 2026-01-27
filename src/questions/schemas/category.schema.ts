@@ -15,6 +15,15 @@ export class Category extends Document {
   @Prop({ default: '' })
   description: string;
 
+  @Prop({ default: 'CHAPTER' })
+  type: 'CHAPTER' | 'EXAM'; // 單元類型
+
+  @Prop({ required: false })
+  duration?: number; // 考試時間限制 (分鐘)
+
+  @Prop({ required: false })
+  passScore?: number; // 及格分數
+
   @Prop({ default: '' })
   guidelines: string; // AI 出題準則 (Markdown format)
 

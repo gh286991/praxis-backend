@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { QuestionGenerationService } from './question-generation.service';
 import { ConfigService } from '@nestjs/config';
@@ -54,9 +53,11 @@ describe('QuestionGenerationService', () => {
           provide: getModelToken(Tag.name),
           useValue: {
             find: jest.fn().mockReturnValue({
-              lean: jest.fn().mockResolvedValue([
-                { name: 'Tag1', slug: 'tag1', type: 'concept', _id: 'id1' },
-              ]),
+              lean: jest
+                .fn()
+                .mockResolvedValue([
+                  { name: 'Tag1', slug: 'tag1', type: 'concept', _id: 'id1' },
+                ]),
             }),
           },
         },
@@ -84,18 +85,20 @@ describe('QuestionGenerationService', () => {
         referenceCode: 'print(input())',
         fileAssets: [{ filename: 'test.txt', content: 'hello' }],
       };
-      
+
       // Stage 2: Input Script
       const mockInputScript = 'print(["1", "2", "3"])';
 
       mockGenerateContent
-        .mockResolvedValueOnce({ // Stage 1 Response
+        .mockResolvedValueOnce({
+          // Stage 1 Response
           response: {
             text: () => JSON.stringify(mockQuestionContent),
             usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20 },
           },
         })
-        .mockResolvedValueOnce({ // Stage 2 Response
+        .mockResolvedValueOnce({
+          // Stage 2 Response
           response: {
             text: () => mockInputScript,
             usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 5 },
@@ -104,7 +107,8 @@ describe('QuestionGenerationService', () => {
 
       // Mock Execution Service
       // 3.1 Input Generation
-      jest.spyOn(executionService, 'executePython')
+      jest
+        .spyOn(executionService, 'executePython')
         .mockResolvedValueOnce({ output: '["1", "2", "3"]', error: '' } as any) // Input Gen
         // 3.2 Reference Code Execution (3 inputs)
         .mockResolvedValueOnce({ output: '1', error: '' } as any)
@@ -113,13 +117,17 @@ describe('QuestionGenerationService', () => {
         // 3.5 Sample Verification (1 sample)
         .mockResolvedValueOnce({ output: '1', error: '' } as any);
 
-      const generator = service.generateQuestionStream(mockModel, 'Test Topic', 'user1');
+      const generator = service.generateQuestionStream(
+        mockModel,
+        'Test Topic',
+        'user1',
+      );
       let finalResult: any;
-      
+
       for await (const update of generator) {
-          if (update.status === 'success') {
-              finalResult = update.data;
-          }
+        if (update.status === 'success') {
+          finalResult = update.data;
+        }
       }
 
       expect(finalResult).toBeDefined();

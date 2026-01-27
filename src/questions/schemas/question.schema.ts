@@ -5,6 +5,7 @@ interface Sample {
   input: string;
   output: string;
   explanation?: string;
+  fileAssets?: Record<string, string>;
 }
 
 @Schema({ _id: false })
@@ -20,9 +21,11 @@ export class TestCase {
 
   @Prop({ required: false })
   description?: string;
+
+  @Prop({ type: Object, required: false })
+  fileAssets?: Record<string, string>;
 }
 export const TestCaseSchema = SchemaFactory.createForClass(TestCase);
-
 
 @Schema({ timestamps: true })
 export class Question extends Document {

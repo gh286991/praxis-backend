@@ -61,6 +61,31 @@ export class QuestionsService {
   }
 
   /**
+   * Get list of questions for a specific category (for sidebar navigation)
+   */
+  async getList(categorySlug: string): Promise<any[]> {
+    // 1. Find category first to get _id? or just query by category string if legacy?
+    // Current schema has 'category' string field provided by controller.
+    // However, for new structure we might want to query by categoryId or category slug.
+
+    // For now, let's query by the 'category' field which matches the slug passed from frontend params
+    const questions = await this.questionModel
+      .find({ category: categorySlug })
+      .select('title _id generatedBy isAIGenerated difficulty') // Select minimal fields
+      .sort({ title: 1 }) // Sort by title (e.g. Q1, Q2) - might need better sorting for mocked exams
+      .exec();
+
+    // Enhancment: Sort by extracting Q number if possible
+    return questions.sort((a, b) => {
+      // Basic alpha sort, simple
+      return a.title.localeCompare(b.title, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+  }
+
+  /**
    * Get next question by subjectId and categoryId (new architecture)
    */
   async getNextQuestionByIds(
@@ -262,7 +287,7 @@ export class QuestionsService {
         questionId: new Types.ObjectId(questionId),
       })
       .exec();
-    
+
     const isFirstAttempt = !existingProgress;
 
     const progress = await this.userProgressModel
@@ -370,17 +395,17 @@ export class QuestionsService {
   ): Promise<void> {
     try {
       const profile = await this.usersService.findOrCreateProfile(userId);
-      
+
       // Only increment totalQuestionsCompleted on first attempt
       if (isFirstAttempt) {
         profile.totalQuestionsCompleted += 1;
       }
-      
+
       // Only increment totalQuestionsPassed if correct and not already passed
       if (isCorrect && isFirstAttempt) {
         profile.totalQuestionsPassed += 1;
       }
-      
+
       await profile.save();
       console.log(
         `Updated profile stats for user ${userId}: completed=${profile.totalQuestionsCompleted}, passed=${profile.totalQuestionsPassed}`,

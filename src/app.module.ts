@@ -8,6 +8,7 @@ import { QuestionsModule } from './questions/questions.module';
 import { ExecutionModule } from './execution/execution.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { ImportModule } from './import/import.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -28,6 +29,7 @@ import { APP_GUARD } from '@nestjs/core';
     ExecutionModule,
     UsersModule,
     AuthModule,
+    ImportModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

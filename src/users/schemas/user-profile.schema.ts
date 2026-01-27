@@ -22,10 +22,10 @@ export class UserProfile {
 
   @Prop({ default: 0 })
   totalTimeSpent: number; // in seconds
-  
+
   @Prop({ default: 10.0, type: Number })
   availableCredits: number; // Available AI credits
-  
+
   @Prop({ default: 10.0, type: Number })
   totalCreditsGranted: number; // Total credits ever granted (for calculating usage percentage)
 

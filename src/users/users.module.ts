@@ -7,7 +7,10 @@ import { User, UserSchema } from './schemas/user.schema';
 import { UserProfile, UserProfileSchema } from './schemas/user-profile.schema';
 import { UsageLog, UsageLogSchema } from './schemas/usage-log.schema';
 import { UsageService } from './usage.service';
-import { UserProgress, UserProgressSchema } from '../questions/schemas/user-progress.schema';
+import {
+  UserProgress,
+  UserProgressSchema,
+} from '../questions/schemas/user-progress.schema';
 
 @Module({
   imports: [
@@ -15,7 +18,7 @@ import { UserProgress, UserProgressSchema } from '../questions/schemas/user-prog
       { name: User.name, schema: UserSchema },
       { name: UserProfile.name, schema: UserProfileSchema },
       { name: UsageLog.name, schema: UsageLogSchema },
-      { name: UserProgress.name, schema: UserProgressSchema }
+      { name: UserProgress.name, schema: UserProgressSchema },
     ]),
   ],
   controllers: [UsersController, UsageController],
