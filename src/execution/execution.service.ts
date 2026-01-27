@@ -176,7 +176,11 @@ export class ExecutionService implements OnModuleInit {
 
   async evaluateSubmissionStream(
     code: string,
-    testCases: { input: string; output: string; fileAssets?: Record<string, string> }[],
+    testCases: {
+      input: string;
+      output: string;
+      fileAssets?: Record<string, string>;
+    }[],
     fileAssets?: Record<string, string>,
   ): Promise<Observable<any>> {
     const subject = new Subject<any>();
@@ -202,10 +206,16 @@ export class ExecutionService implements OnModuleInit {
             // Priority 3: Parse input string for file definition (legacy support)
             let currentInput = testCase.input;
             let currentFileAssets = { ...fileAssets };
-            
-            if (testCase.fileAssets && Object.keys(testCase.fileAssets).length > 0) {
+
+            if (
+              testCase.fileAssets &&
+              Object.keys(testCase.fileAssets).length > 0
+            ) {
               // Test case has its own fileAssets, use them (merge with question's global ones)
-              currentFileAssets = { ...currentFileAssets, ...testCase.fileAssets };
+              currentFileAssets = {
+                ...currentFileAssets,
+                ...testCase.fileAssets,
+              };
               // Clear stdin since file content is provided via fileAssets
               currentInput = '';
             } else if (fileAssets) {
@@ -228,14 +238,15 @@ export class ExecutionService implements OnModuleInit {
               currentFileAssets,
             );
 
-            const actualOutput = output.trim();
-            const expectedOutput = testCase.output.trim();
-            let passed = !error && actualOutput === expectedOutput;
+            const actualOutputTrimmed = output.trim();
+            const expectedOutputTrimmed = testCase.output.trim();
+            let passed =
+              !error && actualOutputTrimmed === expectedOutputTrimmed;
 
             if (!passed && !error) {
               // Floating point tolerance attempt
-              const numActual = parseFloat(actualOutput);
-              const numExpected = parseFloat(expectedOutput);
+              const numActual = parseFloat(actualOutputTrimmed);
+              const numExpected = parseFloat(expectedOutputTrimmed);
               if (!isNaN(numActual) && !isNaN(numExpected)) {
                 if (Math.abs(numActual - numExpected) <= 0.02) {
                   passed = true;
@@ -247,8 +258,8 @@ export class ExecutionService implements OnModuleInit {
 
             const testResult = {
               input: testCase.input,
-              expected: expectedOutput,
-              actual: actualOutput,
+              expected: testCase.output, // Send ORIGINAL output to frontend for display
+              actual: output, // Send ORIGINAL actual output too!
               error: error || null,
               passed,
             };
@@ -287,7 +298,11 @@ export class ExecutionService implements OnModuleInit {
 
   async evaluateSubmission(
     code: string,
-    testCases: { input: string; output: string; fileAssets?: Record<string, string> }[],
+    testCases: {
+      input: string;
+      output: string;
+      fileAssets?: Record<string, string>;
+    }[],
     fileAssets?: Record<string, string>,
   ): Promise<{ passed: boolean; results: any[] }> {
     // Reuse logic? Or keep separate?
@@ -312,7 +327,10 @@ export class ExecutionService implements OnModuleInit {
         let currentInput = testCase.input;
         let currentFileAssets = { ...fileAssets };
 
-        if (testCase.fileAssets && Object.keys(testCase.fileAssets).length > 0) {
+        if (
+          testCase.fileAssets &&
+          Object.keys(testCase.fileAssets).length > 0
+        ) {
           // Test case has its own fileAssets, use them (merge with question's global ones)
           currentFileAssets = { ...currentFileAssets, ...testCase.fileAssets };
           // Clear stdin since file content is provided via fileAssets
@@ -335,13 +353,13 @@ export class ExecutionService implements OnModuleInit {
           currentFileAssets,
         );
         // ... same comparison logic ...
-        const actualOutput = output.trim();
-        const expectedOutput = testCase.output.trim();
-        let passed = !error && actualOutput === expectedOutput;
+        const actualOutputTrimmed = output.trim();
+        const expectedOutputTrimmed = testCase.output.trim();
+        let passed = !error && actualOutputTrimmed === expectedOutputTrimmed;
 
         if (!passed && !error) {
-          const numActual = parseFloat(actualOutput);
-          const numExpected = parseFloat(expectedOutput);
+          const numActual = parseFloat(actualOutputTrimmed);
+          const numExpected = parseFloat(expectedOutputTrimmed);
           if (!isNaN(numActual) && !isNaN(numExpected)) {
             if (Math.abs(numActual - numExpected) <= 0.02) {
               passed = true;
@@ -352,8 +370,8 @@ export class ExecutionService implements OnModuleInit {
         if (!passed) allPassed = false;
         results.push({
           input: testCase.input,
-          expected: expectedOutput,
-          actual: actualOutput,
+          expected: testCase.output, // Send ORIGINAL output for display
+          actual: output, // Send ORIGINAL actual output too!
           error,
           passed,
         });
