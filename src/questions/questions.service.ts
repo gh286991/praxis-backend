@@ -25,12 +25,19 @@ export class QuestionsService {
     return this.questionModel.find().exec();
   }
 
-  async findOne(id: string): Promise<Question> {
-    const question = await this.questionModel
-      .findById(id)
-      .select('+fileAssets') // Explicitly include fileAssets (it's select:false in schema)
-      .populate('tags')
-      .exec();
+  async findOne(id: string, includeSecret: boolean = false): Promise<Question> {
+    const query = this.questionModel.findById(id).populate('tags');
+    
+    // Explicitly include fileAssets (it's select:false in schema)
+    // And if includeSecret is true, also include referenceCode
+    let selectFields = '+fileAssets';
+    if (includeSecret) {
+      selectFields += ' +referenceCode';
+    }
+    
+    query.select(selectFields);
+
+    const question = await query.exec();
     if (!question) {
       throw new NotFoundException(`Question with ID ${id} not found`);
     }

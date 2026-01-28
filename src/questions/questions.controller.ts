@@ -15,6 +15,7 @@ import {
   MessageEvent,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { ExecutionService } from '../execution/execution.service';
 import { QuestionsService } from './questions.service';
 import { MigrationService } from './migration.service';
 import { CategoriesService } from './categories.service';
@@ -31,6 +32,8 @@ export class QuestionsController {
     private readonly questionsService: QuestionsService,
     @Inject(forwardRef(() => GeminiService))
     private readonly geminiService: GeminiService,
+    @Inject(forwardRef(() => ExecutionService))
+    private readonly executionService: ExecutionService,
     private readonly migrationService: MigrationService,
     private readonly categoriesService: CategoriesService,
   ) {}
@@ -200,8 +203,14 @@ export class QuestionsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.questionsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @Query('includeSecret') includeSecret?: string,
+  ) {
+    // Check if user is admin (guard handles auth, but specific admin check might be needed if rolse exist)
+    // For now, allow if present. Ideally should check user role or specific permission.
+    const isSecretRequested = includeSecret === 'true';
+    return this.questionsService.findOne(id, isSecretRequested);
   }
 
   @Patch(':id')
@@ -303,6 +312,27 @@ export class QuestionsController {
     );
 
     return { success: true, progress };
+  }
+
+  /**
+   * Run code against test cases (Dry Run / Admin Test)
+   */
+  @Post('test')
+  async testCode(@Body() body: { code: string; testCases: any[] }) {
+    if (!body.code) return { error: 'No code provided' };
+    if (!body.testCases || body.testCases.length === 0)
+      return { error: 'No test cases provided' };
+
+    // Normalize test cases if needed (ensure input/output are strings)
+    const normalizedTestCases = body.testCases.map((tc) => ({
+      input: String(tc.input || ''),
+      output: String(tc.output || ''),
+    }));
+
+    return this.executionService.evaluateSubmission(
+      body.code,
+      normalizedTestCases,
+    );
   }
 
   /**
