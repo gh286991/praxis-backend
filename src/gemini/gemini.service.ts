@@ -39,8 +39,16 @@ export class GeminiService {
 
     const modelName =
       this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
-    console.log(`[GeminiService] Using model: ${modelName}`);
-    this.model = this.genAI.getGenerativeModel({ model: modelName });
+    console.log(`[GeminiService] Using model: ${modelName} via Zeabur AI Hub`);
+
+    const requestOptions = {
+      baseUrl: 'https://hnd1.aihub.zeabur.ai/gemini',
+    };
+
+    this.model = this.genAI.getGenerativeModel(
+      { model: modelName },
+      requestOptions,
+    );
   }
 
   async generateQuestion(
