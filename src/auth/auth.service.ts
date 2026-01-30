@@ -56,4 +56,15 @@ export class AuthService {
     }
     throw new UnauthorizedException('Invalid credentials');
   }
+
+  async validateApiKey(apiKey: string): Promise<any> {
+    // Simple verification for MCP integration
+    // In production, you might look up a user by API key from DB
+    const validKey = process.env.MCP_API_KEY;
+    if (validKey && apiKey === validKey) {
+        // Return a dummy user or find a specific admin user
+        return { _id: 'mcp-system-user', email: 'mcp@system.local' };
+    }
+    return null;
+  }
 }

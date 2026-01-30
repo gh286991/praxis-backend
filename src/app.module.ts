@@ -8,9 +8,12 @@ import { QuestionsModule } from './questions/questions.module';
 import { ExecutionModule } from './execution/execution.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { McpModule } from './mcp/mcp.module';
 import { ImportModule } from './import/import.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
+import { json, urlencoded } from 'express';
 
 @Module({
   imports: [
@@ -30,6 +33,7 @@ import { APP_GUARD } from '@nestjs/core';
     UsersModule,
     AuthModule,
     ImportModule,
+    McpModule, // Imported
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -50,4 +54,15 @@ import { APP_GUARD } from '@nestjs/core';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // We need to disable body parsing for MCP messages endpoint so SDK can handle the stream
+    consumer
+      .apply(json(), urlencoded({ extended: true }))
+      .exclude(
+        { path: 'mcp/messages', method: RequestMethod.POST },
+        { path: 'api/mcp/messages', method: RequestMethod.POST },
+      )
+      .forRoutes('*');
+  }
+}

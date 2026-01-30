@@ -34,5 +34,6 @@ import { UsersModule } from '../users/users.module';
     CategoriesService,
     SubjectsService,
   ],
+  exports: [ImportService],
 })
 export class ImportModule {}

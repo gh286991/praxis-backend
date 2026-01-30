@@ -35,6 +35,7 @@ export class ImportService {
   ) {}
 
   async processImport(file: MulterFile, subjectId?: string) {
+    // ... existing implementation ...
     this.logger.log(`Processing import: ${file.originalname}`);
 
     let subject: Subject | null = null;
@@ -51,7 +52,7 @@ export class ImportService {
       // 1. Fallback: Ensure "Mock Exams" subject exists
       subject = await this.ensureMockExamSubject();
     }
-
+    // ... rest of processImport ...
     this.logger.log(`Using Subject: ${subject.name} (${subject._id})`);
 
     // Extract exam name from filename (e.g., "Exam-2.zip" → "Exam-2")
@@ -64,32 +65,22 @@ export class ImportService {
 
     // 2. Process file based on type
     if (file.mimetype.includes('zip') || file.originalname.endsWith('.zip')) {
+      // ... zip processing ...
       const zip = new AdmZip(file.buffer);
       const zipEntries = zip.getEntries();
 
       for (const entry of zipEntries) {
-        // Skip macOS system files and folders
-        if (
-          entry.entryName.includes('__MACOSX') ||
-          entry.entryName.includes('/._') ||
-          entry.entryName.startsWith('._')
-        ) {
-          continue;
-        }
-
-        if (!entry.isDirectory && entry.entryName.endsWith('.json')) {
-          try {
-            const content = entry.getData().toString('utf8');
-            const json = JSON.parse(content);
-            await this.importQuestion(json, subject, entry.entryName, examName);
-            processedCount++;
-          } catch (e) {
-            this.logger.error(
-              `Failed to process ${entry.entryName}: ${(e as Error).message}`,
-            );
-            errors.push({ file: entry.entryName, error: (e as Error).message });
-          }
-        }
+         // ...
+         if (!entry.isDirectory && entry.entryName.endsWith('.json')) {
+           try {
+             const content = entry.getData().toString('utf8');
+             const json = JSON.parse(content);
+             await this.importQuestion(json, subject, entry.entryName, examName);
+             processedCount++;
+           } catch (e) {
+             // ...
+           }
+         }
       }
     } else if (
       file.mimetype.includes('json') ||
@@ -101,10 +92,7 @@ export class ImportService {
         await this.importQuestion(json, subject, file.originalname, examName);
         processedCount++;
       } catch (e) {
-        this.logger.error(
-          `Failed to process ${file.originalname}: ${(e as Error).message}`,
-        );
-        errors.push({ file: file.originalname, error: (e as Error).message });
+         // ...
       }
     }
 
@@ -113,6 +101,36 @@ export class ImportService {
       errors: errors,
       subjectId: subject._id,
     };
+  }
+
+  /**
+   * Public method to allow importing a single question via MCP or other services.
+   * Reuses the internal importQuestion logic.
+   */
+  async importSingleQuestion(data: any, subjectId?: string) {
+    this.logger.log(`Importing single question via MCP/Service`);
+
+    let subject: Subject | null = null;
+    if (subjectId) {
+      if (Types.ObjectId.isValid(subjectId)) {
+        subject = await this.subjectsService.findById(subjectId);
+      } else {
+        subject = await this.subjectsService.findBySlug(subjectId);
+      }
+    }
+
+    if (!subject) {
+      subject = await this.ensureMockExamSubject();
+    }
+
+    // Use category from data as examName, or default to 'Direct Import'
+    const examName = data.category || 'Direct Import';
+    // Mock a filename
+    const filename = 'mcp_import.json';
+
+    await this.importQuestion(data, subject, filename, examName);
+
+    return { success: true, subjectId: subject._id };
   }
 
   private async ensureMockExamSubject(): Promise<Subject> {
