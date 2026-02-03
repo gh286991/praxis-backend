@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { fileURLToPath } from 'url';
+
 
 /**
  * MCP Bridge
@@ -199,6 +199,6 @@ class McpBridge {
 }
 
 // Run
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  new McpBridge().start();
+if (process.argv[1].endsWith('mcp-bridge.ts')) {
+   new McpBridge().start();
 }
