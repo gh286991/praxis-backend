@@ -155,7 +155,7 @@ export class QuestionGenerationService {
 
               return {
                 input: inputStr,
-                output: result.output.trim(),
+                output: result.output.trimEnd(),
                 error: result.error,
                 passed: !result.error,
               };
@@ -223,7 +223,7 @@ export class QuestionGenerationService {
             if (!result.error && result.output.trim().length > 0) {
               verifiedSamples.push({
                 input: sample.input,
-                output: result.output.trim(),
+                output: result.output.trimEnd(),
                 explanation: sample.explanation,
               });
             }

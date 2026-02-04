@@ -1,4 +1,4 @@
-import * as http from 'http';
+const http = require('http');
 
 
 /**
@@ -35,7 +35,7 @@ class McpBridge {
   private sessionId: string | null = null;
   private postUrl: string | null = null;
   private requestQueue: string[] = [];
-  private sseReq: http.ClientRequest | null = null;
+  private sseReq: any = null;
 
   constructor() {
     // Parse args
@@ -67,7 +67,7 @@ class McpBridge {
       return;
     }
 
-    const options: http.RequestOptions = {
+    const options = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,14 +75,14 @@ class McpBridge {
       },
     };
 
-    const req = http.request(this.postUrl, options, (res) => {
+    const req = http.request(this.postUrl, options, (res: any) => {
       // We don't really care about the POST response body,
       // as the actual MCP response comes via SSE.
       // But we should consume it to free memory.
       res.resume();
     });
 
-    req.on('error', (e) => {
+    req.on('error', (e: any) => {
       log(`POST Error: ${e.message}`);
     });
 
@@ -91,7 +91,7 @@ class McpBridge {
   }
 
   private connectSSE(): void {
-    const sseOptions: http.RequestOptions = {
+    const sseOptions = {
       host: this.host,
       port: this.port,
       path: `/api/mcp/sse?key=${this.apiKey}`,

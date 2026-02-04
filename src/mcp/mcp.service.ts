@@ -152,6 +152,65 @@ export class McpService implements OnModuleInit {
       },
     );
 
+    // Tool: Import Exam (File)
+    server.tool(
+      'import_exam',
+      'Import an entire exam from a local .zip or .json file (引入考卷)',
+      {
+        filePath: z.string().describe('Absolute path to the .zip or .json file'),
+        subjectId: z.string().optional().describe('Target Subject ID (optional)'),
+      },
+      async ({ filePath, subjectId }) => {
+        this.logger.log(`Tool execution: import_exam (Path: ${filePath})`);
+        try {
+          // Dynamic import for fs/path to avoid global scope clutter or potential issues if not needed elsewhere
+          const fs = await import('fs');
+          const path = await import('path');
+
+          if (!fs.existsSync(filePath)) {
+            throw new Error(`File not found at path: ${filePath}`);
+          }
+
+          const stats = fs.statSync(filePath);
+          const buffer = fs.readFileSync(filePath);
+          const filename = path.basename(filePath);
+          const ext = path.extname(filename).toLowerCase();
+
+          // Determine mimetype
+          let mimetype = 'application/octet-stream';
+          if (ext === '.json') mimetype = 'application/json';
+          else if (ext === '.zip') mimetype = 'application/zip';
+
+          // Mock MulterFile
+          const file = {
+            originalname: filename,
+            mimetype: mimetype,
+            size: stats.size,
+            buffer: buffer,
+          };
+
+          const result = await this.importService.processImport(file, subjectId);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Successfully imported module.\nProcessed: ${result.processed}\nSubjectID: ${result.subjectId}\nErrors: ${result.errors.length}`,
+              },
+            ],
+          };
+        } catch (err: any) {
+          this.logger.error(`Error importing module: ${err.message}`);
+          return {
+            content: [
+              { type: 'text', text: `Error importing module: ${err.message}` },
+            ],
+            isError: true,
+          };
+        }
+      },
+    );
+
     return server;
   }
 
