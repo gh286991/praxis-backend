@@ -48,10 +48,7 @@ import { json, urlencoded } from 'express';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
+    AppService,
   ],
 })
 export class AppModule implements NestModule {
@@ -63,6 +60,6 @@ export class AppModule implements NestModule {
         { path: 'mcp/messages', method: RequestMethod.POST },
         { path: 'api/mcp/messages', method: RequestMethod.POST },
       )
-      .forRoutes('*');
+      .forRoutes('(.*)');
   }
 }

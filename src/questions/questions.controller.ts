@@ -14,6 +14,7 @@ import {
   Sse,
   MessageEvent,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { ExecutionService } from '../execution/execution.service';
 import { QuestionsService } from './questions.service';
@@ -63,6 +64,7 @@ export class QuestionsController {
 
   // SSE route must come BEFORE :id route to avoid path conflicts
 
+  @UseGuards(ThrottlerGuard)
   @Sse('stream')
   streamNextQuestion(
     @Query('category') category: string,
@@ -314,6 +316,67 @@ export class QuestionsController {
     return { success: true, progress };
   }
 
+  @UseGuards(ThrottlerGuard)
+  @Post('check')
+  async checkSemantics(
+    @Body() body: { questionId: string; code: string },
+    @Request() req: any,
+  ) {
+    const userId = req.user.sub;
+    const { questionId, code } = body;
+    const question = await this.questionsService.findOne(questionId);
+
+    // Only basic JSON fields needed for prompt
+    const questionData: QuestionData = {
+      title: question.title,
+      description: question.description,
+      difficulty: question.difficulty as 'easy' | 'medium' | 'hard',
+      tags: question.tags.map(t => t.toString()),
+      referenceCode: question.referenceCode,
+      sampleInput: question.sampleInput,
+      sampleOutput: question.sampleOutput,
+    };
+
+    return this.geminiService.checkSemantics(questionData, code, userId);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('chat')
+  async chatWithTutor(
+    @Body()
+    body: {
+      questionId: string;
+      code: string;
+      chatHistory: { role: 'user' | 'model'; message: string }[];
+      message: string;
+    },
+    @Request() req: any,
+  ) {
+    const userId = req.user.sub;
+    const { questionId, code, chatHistory, message } = body;
+    const question = await this.questionsService.findOne(questionId);
+
+    const questionData: QuestionData = {
+      title: question.title,
+      description: question.description,
+      difficulty: question.difficulty as 'easy' | 'medium' | 'hard',
+      tags: question.tags.map(t => t.toString()),
+      referenceCode: question.referenceCode,
+      sampleInput: question.sampleInput,
+      sampleOutput: question.sampleOutput,
+    };
+
+    const response = await this.geminiService.chatWithTutor(
+      questionData,
+      code,
+      chatHistory,
+      message,
+      userId,
+    );
+    return { response };
+  }
+
+
   /**
    * Run code against test cases (Dry Run / Admin Test)
    */
@@ -339,12 +402,13 @@ export class QuestionsController {
    * Get AI hint for current code
    */
 
+  @UseGuards(ThrottlerGuard)
   @Post('hint')
   async getHint(
     @Request() req: any,
-    @Body() body: { questionId: string; code: string },
+    @Body() body: { questionId: string; code: string; type?: 'logic' | 'code' },
   ) {
-    const { questionId, code } = body;
+    const { questionId, code, type = 'code' } = body;
     const question = await this.questionsService.findOne(questionId);
 
     if (!question) {
@@ -371,6 +435,7 @@ export class QuestionsController {
       questionData,
       code,
       userId,
+      type,
     );
     return { hint };
   }

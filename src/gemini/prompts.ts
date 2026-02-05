@@ -3,9 +3,11 @@ import { QuestionData } from './types';
 // Prompt Versions
 export const PROMPT_VERSIONS = {
   GENERATE_QUESTION: '2.1.0', // Updated with Category-Specific Guidelines
-  GENERATE_HINT: '1.0.0',
+  GENERATE_LOGIC_HINT: '1.0.0',
+  GENERATE_CODE_HINT: '1.0.0',
   CHECK_SEMANTICS: '1.0.0',
   FIX_QUESTION: '1.0.0',
+  CHAT_WITH_TUTOR: '1.0.0',
 };
 
 export const GENERATE_QUESTION_PROMPT = (
@@ -47,8 +49,8 @@ IMPORTANT: Output MUST be a valid JSON object with the following structure:
   "constraints": "特殊約束說明（如果有，否則為 null）",
   "referenceCode": "import sys...", // A fully working Python solution code
   "fileAssets": [ // Optional: Virtual files for file I/O questions
-    { "filename": "data.txt", "content": "10,20,30\n40,50,60" },
-    { "filename": "config.json", "content": "{\"key\": \"value\"}" }
+    { "filename": "data.txt", "content": "10,20,30\\n40,50,60" },
+    { "filename": "config.json", "content": "{\\"key\\": \\"value\\"}" }
   ]
 }
 
@@ -184,11 +186,38 @@ RETURN ONLY THE PYTHON SCRIPT CONTENT. NO MARKDOWN.
 `,
 });
 
-export const GENERATE_HINT_PROMPT = (
+export const GENERATE_LOGIC_HINT_PROMPT = (
   question: QuestionData,
   userCode: string,
 ) => ({
-  version: PROMPT_VERSIONS.GENERATE_HINT,
+  version: PROMPT_VERSIONS.GENERATE_LOGIC_HINT,
+  text: `
+You are a patient Python assistant. The user hasn't typed anything yet or is stuck at the beginning.
+Goal: Provide a high-level "Comment-based Solution Plan" (解題流程註解) to help them start.
+
+Problem:
+${question.title}
+${question.description}
+
+Requirement:
+1. Output ONLY a block of Python comments that outlines the steps to solve the problem.
+2. DO NOT write the actual code logic (no variables, no loops yet). Just the plan.
+3. Use strict Traditional Chinese (繁體中文).
+4. Format it so the user can copy-paste it into their editor as a starting framework.
+
+Example Output:
+# 解題流程：
+# 1. 讀取使用者輸入的整數 N
+# 2. 使用 for 迴圈遍歷 1 到 N
+# 3. 判斷數字是否為偶數...
+`,
+});
+
+export const GENERATE_CODE_HINT_PROMPT = (
+  question: QuestionData,
+  userCode: string,
+) => ({
+  version: PROMPT_VERSIONS.GENERATE_CODE_HINT,
   text: `
 You are a helpful Python tutor assisting a student with a coding problem.
 
@@ -199,7 +228,7 @@ Description: ${question.description}
 The Student's Current Code:
 ${userCode}
 
-The student is stuck and asking for a hint.
+The student is stuck and asking for specific syntax help or the next step.
 Please provide a response in Traditional Chinese (繁體中文) strictly following this format:
 
 ### 🧠 解題思路
@@ -210,13 +239,13 @@ Please provide a response in Traditional Chinese (繁體中文) strictly followi
 - \`input()\`
 - \`print()\`
 
-### 💡 提示
-(Specific, short advice based on their current code. Max 2 sentences.)
+### 💡 建議程式碼片段
+(Provide a small snippet of code that they should type next. NOT the whole solution.)
 
 CRITICAL RULES:
-1. DO NOT reveal the complete solution code.
-2. KEEP IT CONCISE. The user wants quick hints, not long explanations.
-3. Use standard markdown for formatting (bullet points, backticks for code).
+1. DO NOT reveal the COMPLETE solution code. Just the next step.
+2. KEEP IT CONCISE.
+3. Use standard markdown.
 `,
 });
 
@@ -284,3 +313,57 @@ ${failureReport}
 FIXED PARTIAL JSON:
 `,
 });
+export const CHAT_WITH_TUTOR_PROMPT = (
+  question: QuestionData,
+  userCode: string,
+  chatHistory: { role: 'user' | 'model'; message: string }[],
+  userMessage: string,
+) => {
+  const historyText = chatHistory
+    .map((msg) => `${msg.role === 'user' ? 'User' : 'Tutor'}: ${msg.message}`)
+    .join('\n');
+
+  return {
+    version: PROMPT_VERSIONS.CHAT_WITH_TUTOR,
+    text: `
+You are a **Professional and Patient Python Tutor (AI 程式導師)** for TQC exam preparation.
+Your goal is to guide the user to solve the problem by themselves, while providing clear syntax help when needed.
+**Persona**: Explain concepts like a helpful teacher. Be encouraging but focused. Use clear, easy-to-understand language.
+
+Problem Context:
+Title: ${question.title}
+Description:
+${question.description}
+
+User's Current Code:
+\`\`\`python
+${userCode}
+\`\`\`
+
+Conversation History:
+${historyText}
+
+User's New Question:
+"${userMessage}"
+
+Guidelines:
+1. **Check relevance.**
+   - The user's input should be related to programming, the current problem, or the ongoing conversation.
+   - **Allow conversational clarifications** (e.g., "I understand", "Okay", "What happens next?", "I got the matrix").
+   - **Only refuse if clearly off-topic** (e.g., asking about History, Physics, or unrelated general chat).
+   - If off-topic, say: "請專注於目前的程式題目 (Please focus on the current programming problem)."
+2. **Context Awareness**:
+   - The user's code is provided in the **User's Current Code** section above.
+   - **DO NOT ask the user to provide their code.** Read it from the context.
+3. **Be extremely concise.** Do not waste words.
+4. If the user asks for syntax, **provide the code snippet and briefly explain it**.
+5. If the user asks for a hint or approach, **provide a numbered 'Solution TODO List'** (Step 1, Step 2...) that breaks down the logic.
+6. If the user's code has an error, **point it out, explain why it's wrong, and show the fix**.
+7. Do not provide full solution code *unless* the user explicitly asks for the whole thing.
+8. Use Traditional Chinese (繁體中文).
+9. Use markdown for code formatting.
+
+Your Response:
+`,
+  };
+};

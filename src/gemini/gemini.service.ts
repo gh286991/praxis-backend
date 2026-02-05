@@ -5,7 +5,12 @@ import { QuestionData, GenerationUpdate } from './types';
 import { Tag } from '../questions/schemas/tag.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { GENERATE_HINT_PROMPT, CHECK_SEMANTICS_PROMPT } from './prompts';
+import {
+  GENERATE_LOGIC_HINT_PROMPT,
+  GENERATE_CODE_HINT_PROMPT,
+  CHECK_SEMANTICS_PROMPT,
+  CHAT_WITH_TUTOR_PROMPT,
+} from './prompts';
 
 import { ExecutionService } from '../execution/execution.service';
 import { GeminiLogService } from './gemini-log.service';
@@ -37,13 +42,17 @@ export class GeminiService {
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
 
+    const provider = this.configService.get<string>('AI_PROVIDER') || 'google';
     const modelName =
-      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
-    console.log(`[GeminiService] Using model: ${modelName} via Zeabur AI Hub`);
+      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.0-flash-lite';
+    
+    console.log(`[GeminiService] Initializing with Provider: ${provider}, Model: ${modelName}`);
 
-    const requestOptions = {
-      baseUrl: 'https://hnd1.aihub.zeabur.ai/gemini',
-    };
+    const requestOptions: any = {};
+    if (provider === 'zeabur') {
+        requestOptions.baseUrl = 'https://hnd1.aihub.zeabur.ai/gemini';
+        console.log(`[GeminiService] set baseUrl to Zeabur Proxy: ${requestOptions.baseUrl}`);
+    }
 
     this.model = this.genAI.getGenerativeModel(
       { model: modelName },
@@ -93,13 +102,25 @@ export class GeminiService {
     question: QuestionData,
     userCode: string,
     userId?: string,
+    hintType: 'logic' | 'code' = 'code',
   ): Promise<string> {
-    const { text, version } = GENERATE_HINT_PROMPT(question, userCode);
+    const promptGenerator =
+      hintType === 'logic'
+        ? GENERATE_LOGIC_HINT_PROMPT
+        : GENERATE_CODE_HINT_PROMPT;
+
+    const { text, version } = promptGenerator(question, userCode);
 
     try {
       const result = await this.model.generateContent(text);
-      await this.geminiLog.logTokens(result, 'generate_hint', userId);
-      console.log(`Generated Hint using Prompt v${version}`);
+      await this.geminiLog.logTokens(
+        result,
+        hintType === 'logic' ? 'generate_hint_logic' : 'generate_hint_code',
+        userId,
+      );
+      console.log(
+        `Generated Hint (${hintType}) using Prompt v${version}`,
+      );
 
       return result.response.text();
     } catch (error) {
@@ -140,8 +161,36 @@ export class GeminiService {
       return JSON.parse(cleanedText);
     } catch (error) {
       console.error('Error checking semantics:', error);
-      // Fail open or closed? Let's fail open but warn.
       return { passed: true, feedback: '無法進行語意分析 (AI Error)' };
+    }
+  }
+
+  async chatWithTutor(
+    question: QuestionData,
+    userCode: string,
+    chatHistory: { role: 'user' | 'model'; message: string }[],
+    userMessage: string,
+    userId?: string,
+  ): Promise<string> {
+    // Limit history to last 20 messages to save tokens
+    const recentHistory = chatHistory.slice(-20);
+
+    const { text, version } = CHAT_WITH_TUTOR_PROMPT(
+      question,
+      userCode,
+      recentHistory,
+      userMessage,
+    );
+
+    try {
+      const result = await this.model.generateContent(text);
+      await this.geminiLog.logTokens(result, 'chat_with_tutor', userId);
+      console.log(`Chat with Tutor using Prompt v${version}`);
+
+      return result.response.text();
+    } catch (error) {
+      console.error('Error in chatWithTutor:', error);
+      return 'AI 導師暫時無法回應，請稍後再試。';
     }
   }
 }
