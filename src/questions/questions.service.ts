@@ -358,6 +358,80 @@ export class QuestionsService {
   }
 
   /**
+   * Append new messages to chat history without truncating
+   */
+  async appendChatHistory(
+    userId: string,
+    questionId: string,
+    newMessages: { role: 'user' | 'model'; message: string; timestamp?: Date }[],
+  ): Promise<void> {
+    
+    // Add timestamp if missing
+    const messagesWithTime = newMessages.map(msg => ({
+      ...msg,
+      timestamp: msg.timestamp || new Date()
+    }));
+
+    await this.userProgressModel.findOneAndUpdate(
+       {
+         userId: new Types.ObjectId(userId),
+         questionId: new Types.ObjectId(questionId),
+       },
+       {
+         $push: { 
+            chatHistory: { $each: messagesWithTime } 
+         }
+       },
+       { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).exec();
+  }
+
+  /**
+   * Get chat history with pagination
+   * @param limit Number of messages to return (default 20 = 10 exchanges)
+   * @param before Timestamp cursor to fetch messages before (for loading older history)
+   */
+  async getChatHistoryDetail(userId: string, questionId: string, limit: number = 20, before?: Date) {
+    // If 'before' is specified, we perform an aggregation to filter and slice.
+    // If not, we can use simple slice for the most recent messages.
+    
+    const uid = new Types.ObjectId(userId);
+    const qid = new Types.ObjectId(questionId);
+
+    if (!before) {
+        // Simple case: Get last N messages
+        // projection: { chatHistory: { $slice: -limit } }
+        const progress = await this.userProgressModel.findOne(
+            { userId: uid, questionId: qid },
+            { chatHistory: { $slice: -limit } }
+        ).exec();
+        return progress?.chatHistory || [];
+    } else {
+        // Pagination case: Fetch messages strictly before the 'before' timestamp
+        // Since standard find/projection doesn't support filtering inside array easily, we use aggregation
+        const pipeline = [
+            { $match: { userId: uid, questionId: qid } },
+            { 
+              $project: {
+                chatHistory: {
+                  $filter: {
+                    input: '$chatHistory',
+                    as: 'msg',
+                    cond: { $lt: ['$$msg.timestamp', new Date(before)] }
+                  }
+                }
+              }
+            },
+            // The filtered array might still be huge. We want the *last* N of this filtered set (closest to 'before')
+            { $project: { chatHistory: { $slice: ['$chatHistory', -limit] } } }
+        ];
+        
+        const result = await this.userProgressModel.aggregate(pipeline).exec();
+        return result[0]?.chatHistory || [];
+    }
+  }
+
+  /**
    * Get user's question history for a specific category
    */
   async getHistory(userId: string, category: string) {

@@ -37,7 +37,20 @@ export class UserProgress extends Document {
   attemptedAt: Date; // Last attempt time
 
   @Prop({ default: Date.now })
+  @Prop({ default: Date.now })
   firstAttemptedAt: Date; // First time seeing this question
+
+  @Prop({
+    type: [
+      {
+        role: { type: String, enum: ['user', 'model'], required: true },
+        message: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  chatHistory: { role: 'user' | 'model'; message: string; timestamp: Date }[];
 }
 
 export const UserProgressSchema = SchemaFactory.createForClass(UserProgress);

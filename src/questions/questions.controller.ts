@@ -63,8 +63,6 @@ export class QuestionsController {
   }
 
   // SSE route must come BEFORE :id route to avoid path conflicts
-
-  @UseGuards(ThrottlerGuard)
   @Sse('stream')
   streamNextQuestion(
     @Query('category') category: string,
@@ -340,7 +338,20 @@ export class QuestionsController {
     return this.geminiService.checkSemantics(questionData, code, userId);
   }
 
-  @UseGuards(ThrottlerGuard)
+  @Get(':id/chat-history')
+  async getChatHistory(
+    @Param('id') questionId: string,
+    @Query('limit') limitArg: string,
+    @Query('before') beforeArg: string,
+    @Request() req: any,
+  ) {
+    const userId = req.user.sub;
+    const limit = limitArg ? parseInt(limitArg, 10) : 20;
+    const before = beforeArg ? new Date(beforeArg) : undefined;
+    
+    return this.questionsService.getChatHistoryDetail(userId, questionId, limit, before);
+  }
+
   @Post('chat')
   async chatWithTutor(
     @Body()
@@ -373,6 +384,16 @@ export class QuestionsController {
       message,
       userId,
     );
+
+    // Append ONLY the new interaction (User + Model) to history
+    const newMessages = [
+      { role: 'user' as const, message: message, timestamp: new Date() },
+      { role: 'model' as const, message: response, timestamp: new Date() }
+    ];
+
+    // Save to DB (Append mode)
+    await this.questionsService.appendChatHistory(userId, questionId, newMessages);
+
     return { response };
   }
 

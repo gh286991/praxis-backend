@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  GenerativeModel,
+  HarmCategory,
+  HarmBlockThreshold,
+} from '@google/generative-ai';
+
 import { QuestionData, GenerationUpdate } from './types';
 import { Tag } from '../questions/schemas/tag.schema';
 import { InjectModel } from '@nestjs/mongoose';
@@ -45,17 +51,41 @@ export class GeminiService {
     const provider = this.configService.get<string>('AI_PROVIDER') || 'google';
     const modelName =
       this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.0-flash-lite';
-    
-    console.log(`[GeminiService] Initializing with Provider: ${provider}, Model: ${modelName}`);
+
+    console.log(
+      `[GeminiService] Initializing with Provider: ${provider}, Model: ${modelName}`,
+    );
 
     const requestOptions: any = {};
     if (provider === 'zeabur') {
-        requestOptions.baseUrl = 'https://hnd1.aihub.zeabur.ai/gemini';
-        console.log(`[GeminiService] set baseUrl to Zeabur Proxy: ${requestOptions.baseUrl}`);
+      requestOptions.baseUrl = 'https://hnd1.aihub.zeabur.ai/gemini';
+      console.log(
+        `[GeminiService] set baseUrl to Zeabur Proxy: ${requestOptions.baseUrl}`,
+      );
     }
 
     this.model = this.genAI.getGenerativeModel(
-      { model: modelName },
+      {
+        model: modelName,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
+      },
       requestOptions,
     );
   }
@@ -98,6 +128,57 @@ export class GeminiService {
     );
   }
 
+  private async generateWithRetry(
+    operationName: string,
+    operation: () => Promise<any>,
+  ): Promise<any> {
+    const maxRetries = parseInt(
+      this.configService.get<string>('GEMINI_MAX_RETRIES') || '2',
+      10,
+    );
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        lastError = error;
+        const status =
+          error.status || (error.response ? error.response.status : 'unknown');
+
+        console.warn(
+          `[GeminiService] ${operationName} failed (Attempt ${attempt}/${maxRetries + 1}). Status: ${status}`,
+          error.message || error,
+        );
+
+        if (status === 429) {
+          // If 429, wait with exponential backoff
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(
+            `[GeminiService] Rate limited (429). Waiting ${delay}ms before retry...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // For other errors, maybe we shouldn't retry?
+        // For now, let's retry on all errors as the previous logic wasn't specific.
+        // But usually only 429/503 are retryable.
+        if (attempt < maxRetries + 1) {
+          const delay = 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // Log detailed error before giving up
+    console.error(
+      `[GeminiService] ${operationName} failed after ${maxRetries + 1} attempts.`,
+      JSON.stringify(lastError, null, 2),
+    );
+    throw lastError;
+  }
+
   async generateHint(
     question: QuestionData,
     userCode: string,
@@ -112,19 +193,21 @@ export class GeminiService {
     const { text, version } = promptGenerator(question, userCode);
 
     try {
-      const result = await this.model.generateContent(text);
+      const result = await this.generateWithRetry(
+        `generateHint(${hintType})`,
+        () => this.model.generateContent(text),
+      );
+
       await this.geminiLog.logTokens(
         result,
         hintType === 'logic' ? 'generate_hint_logic' : 'generate_hint_code',
         userId,
       );
-      console.log(
-        `Generated Hint (${hintType}) using Prompt v${version}`,
-      );
+      console.log(`Generated Hint (${hintType}) using Prompt v${version}`);
 
       return result.response.text();
     } catch (error) {
-      console.error('Error generating hint:', error);
+      // already logged in generateWithRetry
       return '無法產生提示，請再試一次。';
     }
   }
@@ -137,10 +220,13 @@ export class GeminiService {
     const { text, version } = CHECK_SEMANTICS_PROMPT(question, userCode);
 
     try {
-      const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text }] }],
-        generationConfig: { responseMimeType: 'application/json' },
-      });
+      const result = await this.generateWithRetry('checkSemantics', () =>
+        this.model.generateContent({
+          contents: [{ role: 'user', parts: [{ text }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      );
+
       await this.geminiLog.logTokens(result, 'check_semantics', userId);
       console.log(`Checked Semantics using Prompt v${version}`);
 
@@ -160,7 +246,7 @@ export class GeminiService {
         .trim();
       return JSON.parse(cleanedText);
     } catch (error) {
-      console.error('Error checking semantics:', error);
+      // already logged
       return { passed: true, feedback: '無法進行語意分析 (AI Error)' };
     }
   }
@@ -183,13 +269,16 @@ export class GeminiService {
     );
 
     try {
-      const result = await this.model.generateContent(text);
+      const result = await this.generateWithRetry('chatWithTutor', () =>
+        this.model.generateContent(text),
+      );
+
       await this.geminiLog.logTokens(result, 'chat_with_tutor', userId);
       console.log(`Chat with Tutor using Prompt v${version}`);
 
       return result.response.text();
     } catch (error) {
-      console.error('Error in chatWithTutor:', error);
+      // already logged
       return 'AI 導師暫時無法回應，請稍後再試。';
     }
   }

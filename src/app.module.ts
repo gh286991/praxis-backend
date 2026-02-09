@@ -10,8 +10,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { McpModule } from './mcp/mcp.module';
 import { ImportModule } from './import/import.module';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 
