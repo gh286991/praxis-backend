@@ -37,6 +37,18 @@ export class UserProfile {
 
   @Prop({ default: Date.now })
   joinedAt: Date;
+
+  @Prop({ default: 'free', enum: ['free', 'pro', 'team'] })
+  planTier: string;
+
+  @Prop({ default: 0 })
+  dailyTokensUsed: number;
+
+  @Prop({ default: Date.now })
+  lastDailyReset: Date;
+
+  @Prop({ default: 0 })
+  purchasedEnergyBalance: number;
 }
 
 export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);

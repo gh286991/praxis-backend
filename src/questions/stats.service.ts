@@ -22,6 +22,8 @@ export interface ProgressStats {
   // Aliases for frontend compatibility
   totalAttempts?: number; // Same as completedQuestions
   passedCount?: number; // Same as passedQuestions
+  totalSubmissions?: number;
+  totalPassedSubmissions?: number;
 }
 
 export interface SubjectStats extends ProgressStats {
@@ -95,6 +97,14 @@ export class StatsService {
       (sum, cat) => sum + cat.passedQuestions,
       0,
     );
+    const totalSubmissions = categoryStats.reduce(
+      (sum, cat) => sum + (cat.totalSubmissions || 0),
+      0,
+    );
+    const totalPassedSubmissions = categoryStats.reduce(
+      (sum, cat) => sum + (cat.totalPassedSubmissions || 0),
+      0,
+    );
 
     return {
       subjectId: subject._id.toString(),
@@ -114,6 +124,8 @@ export class StatsService {
       // Frontend compatibility aliases
       totalAttempts: completedQuestions,
       passedCount: passedQuestions,
+      totalSubmissions,
+      totalPassedSubmissions,
       subjectTitle: subject.name,
     };
   }
@@ -166,6 +178,8 @@ export class StatsService {
           : 0,
       totalAttempts: completedQuestions,
       passedCount: passedQuestions,
+      totalSubmissions: progress.reduce((sum, p) => sum + (p.attemptCount || 0), 0),
+      totalPassedSubmissions: progress.reduce((sum, p) => sum + (p.passedCount || 0), 0),
     };
   }
 

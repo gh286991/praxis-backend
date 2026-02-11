@@ -15,6 +15,49 @@ export class UsageService {
     private userProfileModel: Model<UserProfileDocument>,
   ) {}
 
+  /**
+   * Check if user has enough energy for the request
+   * @throws ForbiddenException if energy is insufficient
+   */
+  async checkEnergyAvailability(userId: string): Promise<boolean> {
+    if (!userId) return true; // Skip check for anonymous/system users for now
+
+    const objectId = new Types.ObjectId(userId);
+    const profile = await this.userProfileModel.findOne({ userId: objectId });
+    
+    if (!profile) return true;
+
+    // Check if daily reset is needed
+    const now = new Date();
+    const lastReset = new Date(profile.lastDailyReset || 0);
+    
+    // Reset if it's a new day (UTC)
+    if (now.getUTCDate() !== lastReset.getUTCDate() || 
+        now.getUTCMonth() !== lastReset.getUTCMonth() || 
+        now.getUTCFullYear() !== lastReset.getUTCFullYear()) {
+      profile.dailyTokensUsed = 0;
+      profile.lastDailyReset = now;
+      await profile.save();
+      return true;
+    }
+
+    // Define limits (1 Energy = 1500 Tokens)
+    const DAILY_LIMITS = {
+      free: 5 * 1500,    // 7,500 Tokens
+      pro: 100 * 1500,   // 150,000 Tokens
+      team: Infinity,
+    };
+
+    const limit = DAILY_LIMITS[profile.planTier || 'free'];
+    
+    // Check if limit exceeded
+    if (profile.dailyTokensUsed >= limit) {
+      return false;
+    }
+
+    return true;
+  }
+
   async logUsage(
     userId: string | Types.ObjectId,
     model: string,
@@ -38,6 +81,14 @@ export class UsageService {
       }
     } else {
       userObjectId = userId;
+    }
+
+    // Update user profile daily usage
+    const profile = await this.userProfileModel.findOne({ userId: userObjectId });
+    if (profile) {
+      profile.dailyTokensUsed = (profile.dailyTokensUsed || 0) + totalTokens;
+      profile.totalTokensUsed = (profile.totalTokensUsed || 0) + totalTokens;
+      await profile.save();
     }
 
     const usageLog = new this.usageLogModel({
@@ -111,10 +162,22 @@ export class UsageService {
       process.env.TOKENS_PER_CREDIT || '1500',
       10,
     );
-    const creditsUsedFromLogs = totalTokens / tokensPerCredit;
+    
+    // Use stored values instead of calculating from logs for better performance and consistency with daily limits
     const availableCredits = profile
-      ? Math.max(0, profile.totalCreditsGranted - creditsUsedFromLogs)
+      ? Math.max(0, profile.availableCredits) // TODO: This field is deprecated in favor of daily limits, but kept for compatibility
       : 0;
+
+    // Daily Limit Info
+    // Daily Limit Info
+    const DAILY_LIMITS = {
+      free: 3 * 1500,    // 4,500 Tokens
+      pro: 100 * 1500,
+      team: Infinity,
+    };
+    const dailyLimit = DAILY_LIMITS[profile?.planTier || 'free'];
+    const dailyUsed = profile?.dailyTokensUsed || 0;
+    const purchasedBalance = profile?.purchasedEnergyBalance || 0;
 
     return {
       totalTokens,
@@ -125,12 +188,24 @@ export class UsageService {
       byModel,
       recentUsage: logs.slice(-10).reverse(), // Last 10 logs, most recent first
       credits: {
-        available: availableCredits,
-        total: profile?.totalCreditsGranted || 10,
-        used: creditsUsedFromLogs,
-        granted: profile?.totalCreditsGranted || 10,
+        // Daily Free Energy
+        daily: {
+           available: Math.max(0, (dailyLimit - dailyUsed) / tokensPerCredit),
+           total: dailyLimit / tokensPerCredit,
+           used: dailyUsed / tokensPerCredit,
+        },
+        // Wallet Energy
+        wallet: {
+           balance: purchasedBalance / tokensPerCredit,
+        },
+        // Legacy support/Total available for simple checks
+        available: Math.max(0, (dailyLimit - dailyUsed + purchasedBalance) / tokensPerCredit),
+        total: (dailyLimit + purchasedBalance) / tokensPerCredit,
+        used: dailyUsed / tokensPerCredit,
+        granted: dailyLimit / tokensPerCredit,
       },
       tokensPerCredit, // 返回转换比例给前端
+      planTier: profile?.planTier || 'free',
     };
   }
 
